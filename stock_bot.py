@@ -10,7 +10,7 @@ import os
 
 # --- Configuration ---
 TICKER = os.getenv("TICKER_SYMBOL", "^GSPC")
-WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK", "https://discord.com/api/webhooks/...")
+WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK", "https://discord.com/api/webhooks/1483398247937474671/qrHpD3-JtVzpxUFYDrpkzFkNN-qKoiEavvevcgiiUjMehTcGTgA4mlxlwiRS4DMuZ-Y5")
 
 class Action(Enum):
     BUY = "🟢 ซื้อเพิ่ม (Oversold)"
