@@ -33,7 +33,10 @@ def ask_gemini(result: AnalysisResult):
     - การตัดสินใจ: {result.action.value}
     """
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
         return response.text
     except Exception as e:
         return f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}"
