@@ -150,7 +150,7 @@ if __name__ == "__main__":
         result = analyze_market(TICKER)
         
         print("🤖 กำลังให้ AI ช่วยวิเคราะห์...")
-        ai_insight = ask_gemini_analysis(result)
+        ai_insight = ask_gemini(result)
         
         # อย่าลืมเรียกฟังก์ชันแจ้งเตือน!
         notify_discord(result, ai_insight)
