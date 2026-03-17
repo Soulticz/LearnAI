@@ -46,18 +46,21 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
             raise ValueError("ข้อมูลไม่เพียงพอสำหรับการวิเคราะห์")
 
         if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.droplevel(0)
+            df.columns = df.columns.get_level_values(0)
 
+        df.columns = [str(col).capitalize() for col in df.columns]
         df = df.copy()
-        df.ta.rsi(length=14, append=True)
+        
+        # คำนวณ RSI
+        df.ta.rsi(close='Close', length=14, append=True)
 
-        # ดึงค่าแถวสุดท้ายและแปลงเป็น float ให้ชัวร์
-        lasted_rsi = float(df['RSI_14'].iloc[-1])
-        lasted_close = float(df['Close'].iloc[-1])
-        
-        if pd.isna(lasted_rsi):
-            raise ValueError("คำนวณ RSI ไม่สำเร็จ")
-        
+        rsi_col = [c for c in df.columns if 'RSI' in c.upper()]
+        if not rsi_col:
+            raise ValueError(f"คำนวณ RSI ไม่สำเร็จ:{df.columns.tolist()}")
+
+        lasted_rsi == folat(df[rsi_col[0]].iloc[-1])
+        lasted_close == folat(df['Close'].iloc[-1])
+
         # Logic การตัดสินใจ (แก้คำผิดตรงนี้)
         if lasted_rsi < 30:
             action = Action.BUY
