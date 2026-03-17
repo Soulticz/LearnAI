@@ -53,7 +53,7 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
 
         df.columns = [str(col).capitalize() for col in df.columns]
         df = df.copy()
-        
+        df.columns = df.columns.str.lower()
         # คำนวณ RSI
         df["RSI_14"] = ta_lib.momentum.RSIIndicator(df["close"], window=14).rsi()
 
