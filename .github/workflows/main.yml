@@ -21,8 +21,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pandas==2.2.2 yfinance requests
-          # ลองเปลี่ยนไปโหลดจาก Branch master แทน
-          pip install https://github.com/twopirllc/pandas-ta/archive/refs/heads/master.zip
+          pip install pandas-ta-classic
          
 
       - name: 4. Run AI Bot
