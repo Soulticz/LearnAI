@@ -31,7 +31,10 @@ def notify_discord(result: AnalysisResult):
 
     macd_icon =  "↑" if result.macd_hist > 0 else "↓"
     msg = {
-        "content": f"📊 **{result.ticker} Report**\nPrice: {result.current_price:,.2f}\nRSI: {result.rsi_14}\nDecision: **{result.action.value}**"
+        "content": f"📊 **{result.ticker} Report**\nPrice: {result.current_price:,.2f}\nRSI: {result.rsi_14}\nDecision: **{result.action.value}**\nMACD: {result.macd_hist} {macd_icon}\n"
+    
+    
+    
     }
     try:
         # ใช้ requests (มี s) ที่เป็นมาตรฐาน
@@ -58,10 +61,10 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         df["RSI_14"] = ta_lib.momentum.RSIIndicator(df["close"], window=14).rsi()
 
         # คำนวณ MACD
-        macd_obj = ta_lib.trend.MACD(close, window_slow=26,window_fast=12,window_sign=9)
+        macd_obj = ta_lib.trend.MACD(df["close"], window_slow=26,window_fast=12,window_sign=9)
         df["MACD"] = macd_obj.macd()
         df["MACD_SIGN"] = macd_obj.macd_signal()
-        df["MACD_HIST"] = macd_obj.macd_hist()
+        df["MACD_HIST"] = macd_obj.macd_diff()
         
 
         rsi_col = [c for c in df.columns if 'RSI' in c.upper()]
@@ -71,9 +74,9 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         lasted_rsi = float(df[rsi_col[0]].iloc[-1])
         lasted_close = float(df['close'].iloc[-1])
         lasted_hist = float(df["MACD_HIST"].iloc[-1])
-        prev_hist = float(df["MACD_HISST"].iloc[-2])
-        macd_buy = lasted_rsi< 35
-        macd_sell = lasted_rsi > 65
+        prev_hist = float(df["MACD_HIST"].iloc[-2])
+        rsi_buy = lasted_rsi< 35
+        rsi_sell = lasted_rsi > 65
         macd_buy = lasted_hist > 0 and lasted_hist > prev_hist
         macd_sell = lasted_hist < 0 and lasted_hist < prev_hist
 
