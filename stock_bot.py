@@ -55,7 +55,7 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         df = df.copy()
         
         # คำนวณ RSI
-        df["RSI_14"] = ta_lib.momentum.RSIIndicator(df["Close"], window=14).rsi()
+        df["RSI_14"] = ta_lib.momentum.RSIIndicator(df["close"], window=14).rsi()
 
         # คำนวณ MACD
         macd_obj = ta_lib.trend.MACD(close, window_slow=26,window_fast=12,window_sign=9)
@@ -69,7 +69,9 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
             raise ValueError(f"คำนวณ RSI ไม่สำเร็จ:{df.columns.tolist()}")
 
         lasted_rsi = float(df[rsi_col[0]].iloc[-1])
-        lasted_close = float(df['Close'].iloc[-1])
+        lasted_close = float(df['close'].iloc[-1])
+        lasted_hist = float(df["MACD_HIST"].iloc[-1])
+        prev_hist = float(df["MACD_HISST"].iloc[-2])
         macd_buy = lasted_rsi< 35
         macd_sell = lasted_rsi > 65
         macd_buy = lasted_hist > 0 and lasted_hist > prev_hist
