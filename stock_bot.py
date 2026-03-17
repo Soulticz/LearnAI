@@ -24,7 +24,7 @@ class AnalysisResult:
     timestamp: str
 
 def ask_gemini(result: AnalysisResult):
-    model = genai.GenerativeModel('gemini-2.5-flash')
+   
     prompt = f"""
     คุณคือผู้เชี่ยวชาญด้านการลงทุนในตลาดหุ้น{result.ticker} จากข้อมูลชุดปัจจุบัน:
     - ราคาปัจจุบัน: {result.current_price}
