@@ -27,5 +27,6 @@ jobs:
       - name: 4. Run AI Bot
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TICKER_SYMBOL: "^GSPC"
         run: python stock_bot.py
