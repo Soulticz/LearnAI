@@ -1,4 +1,3 @@
-from curl_cffi import request
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
@@ -7,15 +6,11 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-#import logging
 import os
 
-TICKER = os.getenv("TICKER_SYMBOL","^GSPC")
-
-
-#logging.basicConfig(Level=logging.INFO, format= '$(asctime)s - %(levelname)s - %(message)s')
-#logging = logging.getLogger(__name__)
-WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK","https://discord.com/api/webhooks/1483398247937474671/qrHpD3-JtVzpxUFYDrpkzFkNN-qKoiEavvevcgiiUjMehTcGTgA4mlxlwiRS4DMuZ-Y5")
+# --- Configuration ---
+TICKER = os.getenv("TICKER_SYMBOL", "^GSPC")
+WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK", "https://discord.com/api/webhooks/...")
 
 class Action(Enum):
     BUY = "🟢 ซื้อเพิ่ม (Oversold)"
@@ -29,58 +24,66 @@ class AnalysisResult:
     current_price: float
     rsi_14: float
     timestamp: str
+
 def notify_discord(result: AnalysisResult):
-    """ฟังชั่นส่งข้อมูลเข้า Discord """
+    """ฟังก์ชันส่งข้อมูลเข้า Discord"""
     msg = {
-        "content": f"📊 **{result.ticker} Report**\nPrice: {result.current_price}\nDecision: **{result.action.value}**"
-    
+        "content": f"📊 **{result.ticker} Report**\nPrice: {result.current_price:,.2f}\nRSI: {result.rsi_14}\nDecision: **{result.action.value}**"
     }
-    request.post(WEBHOOK_URL, json=msg)   
-
-
+    try:
+        # ใช้ requests (มี s) ที่เป็นมาตรฐาน
+        response = requests.post(WEBHOOK_URL, json=msg)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"ส่ง Discord ไม่สำเร็จ: {e}")
 
 def analyze_market(ticker_symbol: str) -> AnalysisResult:
     """วิเคราะห์ตลาดหุ้น"""
     try:
-        # ดึงข้อมูลหุ้น
-       df = yf.download(ticker_symbol, period="6mo", progress=False)
+        df = yf.download(ticker_symbol, period="6mo", progress=False)
 
-       if df.empty or len(df) < 14:
-           raise ValueError("ข้อมูลไม่เพียงพอสำหรับการวิเคราะห์")
-# ใช้ .copy() เพื่อป้องกัน SettingWithCopyWarning
-       df = df.copy()
+        if df.empty or len(df) < 14:
+            raise ValueError("ข้อมูลไม่เพียงพอสำหรับการวิเคราะห์")
 
-       # คำนวณ RSI
-       df.ta.rsi(length=14, append=True)
+        df = df.copy()
+        df.ta.rsi(length=14, append=True)
 
-       lasted_rsi = df['RSI_14'].iloc[-1]
-       lasted_close = df['Close'].iloc[-1]
-       
-       if pd.isna(lasted_rsi):
-        raise ValueError("คำนวณ RSI ไม่สำเร็จ")
+        # ดึงค่าแถวสุดท้ายและแปลงเป็น float ให้ชัวร์
+        lasted_rsi = float(df['RSI_14'].iloc[-1])
+        lasted_close = float(df['Close'].iloc[-1])
         
+        if pd.isna(lasted_rsi):
+            raise ValueError("คำนวณ RSI ไม่สำเร็จ")
+        
+        # Logic การตัดสินใจ (แก้คำผิดตรงนี้)
         if lasted_rsi < 30:
             action = Action.BUY
-        elif lasted_rsi >70:
-            action = Aciton.SELL
+        elif lasted_rsi > 70:
+            action = Action.SELL
         else:
-            action = Actionn.HOLD
+            action = Action.HOLD
 
         return AnalysisResult(
             ticker=ticker_symbol,
-            current_price=round(folat(lastest_close),2),
-            rsi_14=round(float(lasted_rsi),2),
+            current_price=round(lasted_close, 2),
+            rsi_14=round(lasted_rsi, 2),
             action=action,
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
     except Exception as e:
-        logger.error(f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}")
+        print(f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}")
         raise
+
 if __name__ == "__main__":
     try:
         result = analyze_market(TICKER)
-        print(f"\n---{result.ticker} Analysis ---")
+        print(f"\n--- {result.ticker} Analysis ---")
         print(f"Price: {result.current_price} | RSI: {result.rsi_14}")
         print(f"Decision: {result.action.value}")
+        
+        # อย่าลืมเรียกฟังก์ชันแจ้งเตือน!
+        notify_discord(result)
+        
     except Exception:
-        exit(1)
+        import sys
+        sys.exit(1)
