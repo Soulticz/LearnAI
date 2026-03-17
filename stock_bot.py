@@ -7,6 +7,25 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 import os
+import google.generativeai as genai
+
+
+GEMINI_KEY = os.getenv("GEMINI_KEY")
+genai.configure(api_key=GEMINI_KEY)
+def ask_gemini(result: AnalysisResult):
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    prompt = f"""
+    คุณคือผู้เชี่ยวชาญด้านการลงทุนในตลาดหุ้น{result.ticker} จากข้อมูลชุดปัจจุบัน:
+    - ราคาปัจจุบัน: {result.current_price}
+    - RSI: {result.rsi_14}
+    - MACD: {result.macd_hist}
+    - การตัดสินใจ: {result.action.value}
+    """
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}"
 
 # --- Configuration ---
 TICKER = os.getenv("TICKER_SYMBOL", "^GSPC")
@@ -26,7 +45,7 @@ class AnalysisResult:
     rsi_14: float
     timestamp: str
 
-def notify_discord(result: AnalysisResult):
+def notify_discord(result: AnalysisResult, ai_insight: str):
     """ฟังก์ชันส่งข้อมูลเข้า Discord"""
 
     color = 0x2ecc71 if result.action == Action.BUY else \
@@ -36,7 +55,8 @@ def notify_discord(result: AnalysisResult):
 
     payload = {
         "embeds": [{
-            "title": f"🚀 Stock Analysis: {result.ticker}",
+            "title": f"🤖 AI Analyst Report: {result.ticker}",
+            "description": ai_insight,
             "color": color,
             "fields": [
                 {"name": "💰Price", "value": f"**{result.current_price:,.2f}**", "inline": True},
@@ -127,13 +147,15 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
 if __name__ == "__main__":
     try:
         result = analyze_market(TICKER)
-        print(f"\n--- {result.ticker} Analysis ---")
-        print(f"Price: {result.current_price} | RSI: {result.rsi_14}")
-        print(f"Decision: {result.action.value}")
+        
+        print("🤖 กำลังให้ AI ช่วยวิเคราะห์...")
+        ai_insight = ask_gemini_analysis(result)
         
         # อย่าลืมเรียกฟังก์ชันแจ้งเตือน!
-        notify_discord(result)
-        
-    except Exception:
+        notify_discord(result, ai_insight)
+        print("🤖 AI วิเคราะห์เสร็จสิ้น:")
+        print(ai_insight)
+    except Exception as e:
+        print(f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}")
         import sys
         sys.exit(1)
