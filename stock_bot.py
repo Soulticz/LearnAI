@@ -1,6 +1,6 @@
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
+import pandas_ta_classic as ta  # เปลี่ยนชื่อให้ตรงกับ library ที่เราลง
 import requests
 import json
 from dataclasses import dataclass
