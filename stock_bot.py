@@ -58,9 +58,9 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         if not rsi_col:
             raise ValueError(f"คำนวณ RSI ไม่สำเร็จ:{df.columns.tolist()}")
 
-        lasted_rsi == folat(df[rsi_col[0]].iloc[-1])
-        lasted_close == folat(df['Close'].iloc[-1])
-
+        lasted_rsi = float(df[rsi_col[0]].iloc[-1])
+        lasted_close = float(df['Close'].iloc[-1])
+   
         # Logic การตัดสินใจ (แก้คำผิดตรงนี้)
         if lasted_rsi < 30:
             action = Action.BUY
