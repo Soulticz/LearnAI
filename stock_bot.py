@@ -29,16 +29,40 @@ class AnalysisResult:
 def notify_discord(result: AnalysisResult):
     """ฟังก์ชันส่งข้อมูลเข้า Discord"""
 
-    macd_icon =  "↑" if result.macd_hist > 0 else "↓"
-    msg = {
-        "content": f"📊 **{result.ticker} Report**\nPrice: {result.current_price:,.2f}\nRSI: {result.rsi_14}\nDecision: **{result.action.value}**\nMACD: {result.macd_hist} {macd_icon}\n"
+    color = 0x2ecc71 if result.action == Action.BUY else \
+            0xe74c3c if result.action == Action.SELL else 0xf1c40f
+
+    macd_icon =  "📈" if result.macd_hist > 0 else "📉"
+
+    payload = {
+        "embeds": [{
+            "title": f"🚀 Stock Analysis: {result.ticker}",
+            "color": color,
+            "fields": [
+                {"name": "💰Price", "value": f"**{result.current_price:,.2f}**", "inline": True},
+                {"name": "📊RSI", "value": f"**{result.rsi_14}**", "inline": True},
+                {"name": "📉MACD", "value": f"**{result.macd_hist}**", "inline": True},
+                {"name": "🎯Decition", "value": f"**{result.action.value}**", "inline": True},
+                {"name": "⏰Time", "value": f"**{result.timestamp}**", "inline": True}],
+            "footer": {"text": f"Analysis at: {result.timestamp}"},
+            "thumbnail": {"url": "https://cdn-icons-png.flaticon.com/512/2422/2422796.png"}
     
-    
-    
+
+
+
+
+
+        }]
     }
+   # msg = {
+    #    "content": f"📊 **{result.ticker} Report**\nPrice: {result.current_price:,.2f}\nRSI: {result.rsi_14}\nDecision: **{result.action.value}**\nMACD: {result.macd_hist} {macd_icon}\n"
+    
+    
+    
+    #}
     try:
         # ใช้ requests (มี s) ที่เป็นมาตรฐาน
-        response = requests.post(WEBHOOK_URL, json=msg)
+        response = requests.post(WEBHOOK_URL, json=payload)
         response.raise_for_status()
     except Exception as e:
         print(f"ส่ง Discord ไม่สำเร็จ: {e}")
