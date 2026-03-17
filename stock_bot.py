@@ -22,11 +22,14 @@ class AnalysisResult:
     ticker: str
     action: Action 
     current_price: float
+    macd_hist: float
     rsi_14: float
     timestamp: str
 
 def notify_discord(result: AnalysisResult):
     """ฟังก์ชันส่งข้อมูลเข้า Discord"""
+
+    macd_icon =  "↑" if result.macd_hist > 0 else "↓"
     msg = {
         "content": f"📊 **{result.ticker} Report**\nPrice: {result.current_price:,.2f}\nRSI: {result.rsi_14}\nDecision: **{result.action.value}**"
     }
@@ -42,7 +45,7 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
     try:
         df = yf.download(ticker_symbol, period="6mo", progress=False)
 
-        if df.empty or len(df) < 14:
+        if df.empty or len(df) < 26:
             raise ValueError("ข้อมูลไม่เพียงพอสำหรับการวิเคราะห์")
 
         if isinstance(df.columns, pd.MultiIndex):
@@ -54,17 +57,28 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         # คำนวณ RSI
         df.ta.rsi(close='Close', length=14, append=True)
 
+        # คำนวณ MACD
+        macd_obj = ta.lib.trend.MACD(close, window_slow=26,window_fast=12,window_sign=9)
+        df["MACD"] = macd_obj.macd()
+        df[MACD_SIGN] = macd_obj.macd_signal()
+        df[MACD_HIST] = macd_obj.macd_hist()
+        
+
         rsi_col = [c for c in df.columns if 'RSI' in c.upper()]
         if not rsi_col:
             raise ValueError(f"คำนวณ RSI ไม่สำเร็จ:{df.columns.tolist()}")
 
         lasted_rsi = float(df[rsi_col[0]].iloc[-1])
         lasted_close = float(df['Close'].iloc[-1])
-   
+        macd_buy = lasted_rsi< 35
+        macd_sell = lasted_rsi > 65
+        macd_buy = lasted_hist > 0 and lasted_hist > prev_hist
+        macd_sell = lasted_hist < 0 and lasted_hist < prev_hist
+
         # Logic การตัดสินใจ (แก้คำผิดตรงนี้)
-        if lasted_rsi < 30:
+        if rsi_buy and macd_buy:
             action = Action.BUY
-        elif lasted_rsi > 70:
+        elif rsi_sell and macd_sell:
             action = Action.SELL
         else:
             action = Action.HOLD
@@ -73,6 +87,7 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
             ticker=ticker_symbol,
             current_price=round(lasted_close, 2),
             rsi_14=round(lasted_rsi, 2),
+            macd_hist=round(lasted_hist, 4),
             action=action,
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
