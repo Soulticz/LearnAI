@@ -10,8 +10,7 @@ import os
 import google.generativeai as genai
 
 
-GEMINI_KEY = os.getenv("GEMINI_KEY")
-genai.configure(api_key=GEMINI_KEY)
+
 def ask_gemini(result: AnalysisResult):
     model = genai.GenerativeModel('gemini-2.5-flash')
     prompt = f"""
@@ -27,9 +26,6 @@ def ask_gemini(result: AnalysisResult):
     except Exception as e:
         return f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}"
 
-# --- Configuration ---
-TICKER = os.getenv("TICKER_SYMBOL", "^GSPC")
-WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK","https://discord.com/api/webhooks/1483398247937474671/qrHpD3-JtVzpxUFYDrpkzFkNN-qKoiEavvevcgiiUjMehTcGTgA4mlxlwiRS4DMuZ-Y5")
 
 class Action(Enum):
     BUY = "🟢 ซื้อเพิ่ม (Oversold)"
@@ -44,6 +40,11 @@ class AnalysisResult:
     macd_hist: float
     rsi_14: float
     timestamp: str
+# --- Configuration ---
+TICKER = os.getenv("TICKER_SYMBOL", "^GSPC")
+WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK","https://discord.com/api/webhooks/1483398247937474671/qrHpD3-JtVzpxUFYDrpkzFkNN-qKoiEavvevcgiiUjMehTcGTgA4mlxlwiRS4DMuZ-Y5")
+GEMINI_KEY = os.getenv("GEMINI_KEY")
+client = genai.Client(api_key=GEMINI_KEY)
 
 def notify_discord(result: AnalysisResult, ai_insight: str):
     """ฟังก์ชันส่งข้อมูลเข้า Discord"""
