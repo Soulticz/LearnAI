@@ -45,6 +45,9 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         if df.empty or len(df) < 14:
             raise ValueError("ข้อมูลไม่เพียงพอสำหรับการวิเคราะห์")
 
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.droplevel(0)
+
         df = df.copy()
         df.ta.rsi(length=14, append=True)
 
