@@ -55,7 +55,7 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         df = df.copy()
         
         # คำนวณ RSI
-        df.ta.rsi(close='Close', length=14, append=True)
+        df["RSI_14"] = ta_lib.momentum.RSIindicator(df["Close"], window=14).rsi()
 
         # คำนวณ MACD
         macd_obj = ta.lib.trend.MACD(close, window_slow=26,window_fast=12,window_sign=9)
