@@ -70,12 +70,7 @@ def notify_discord(result: AnalysisResult, ai_insight: str):
                 {"name": "⏰Time", "value": f"**{result.timestamp}**", "inline": True}],
             "footer": {"text": f"Analysis at: {result.timestamp}"},
             "thumbnail": {"url": "https://cdn-icons-png.flaticon.com/512/2422/2422796.png"}
-    def create_chart(df, ticker):
-        plt.figure(figsize=(10, 5))
-        plt.plot(df.index. df['close'], label='Price',color='blue')
-        plt.totle(f"{ticker} Price Action")
-        plt.savefig( 'chart.png')
-        plt.close()
+
 
 
 
@@ -152,6 +147,12 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
     except Exception as e:
         print(f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}")
         raise
+def create_chart(df, ticker):
+        plt.figure(figsize=(10, 5))
+        plt.plot(df.index. df['close'], label='Price',color='blue')
+        plt.totle(f"{ticker} Price Action")
+        plt.savefig( 'chart.png')
+        plt.close()
 
 if __name__ == "__main__":
     try:
