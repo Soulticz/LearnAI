@@ -26,7 +26,8 @@ class AnalysisResult:
     df_history: pd.DataFrame # เก็บข้อมูลไว้ทำกราฟ
 
 # --- Configuration ---
-TICKER = os.getenv("TICKER_SYMBOL", "^GSPC","GC=F","BTC-USD","NVDA")
+TICKER = os.getenv("TICKER_SYMBOL", "^GSPC,GC=F,BTC-USD,NVDA")
+watchlist = [t.strip() for t in TICKER.split(",")]
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY") # เช็คชื่อตัวแปรใน GitHub ให้ตรงนะครับ
 client = genai.Client(api_key=GEMINI_KEY)
@@ -142,21 +143,22 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
     )
 
 if __name__ == "__main__":
-    try:
+    for ticker in watchlist:
+        try:
         # 1. วิเคราะห์ตลาด
-        result = analyze_market(TICKER)
+            result = analyze_market( ticker)
         
         # 2. วาดกราฟ
-        print("🎨 สร้างกราฟ...")
-        create_chart(result.df_history, TICKER)
+            print("🎨 สร้างกราฟ...")
+            create_chart(result.df_history, ticker)
         
         # 3. ให้ AI วิเคราะห์
-        print(f"🤖 AI กำลังคิด...{TICKER}")
-        ai_insight = ask_gemini(result)
+            print(f"🤖 AI กำลังคิด...{ticker}")
+            ai_insight = ask_gemini(result)
         
         # 4. ส่งแจ้งเตือน
-        notify_discord(result, ai_insight)
-        print(f"AI Insight: {TICKER}")
+            notify_discord(result, ai_insight)
+            print(f"AI Insight: {ticker}")
         
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        except Exception as e:
+            print(f"❌{ticker} Error: {str(e)}")
