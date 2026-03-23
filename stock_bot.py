@@ -1,6 +1,6 @@
 import yfinance as yf
 import pandas as pd
-import ta as ta_lib # เปลี่ยนชื่อให้ตรงกับ library ที่เราลง
+import ta as ta_lib
 import requests
 import json
 from dataclasses import dataclass
@@ -23,161 +23,138 @@ class AnalysisResult:
     macd_hist: float
     rsi_14: float
     timestamp: str
-    # --- Configuration ---
+    df_history: pd.DataFrame # เก็บข้อมูลไว้ทำกราฟ
+
+# --- Configuration ---
 TICKER = os.getenv("TICKER_SYMBOL", "^GSPC")
-WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK","https://discord.com/api/webhooks/1483398247937474671/qrHpD3-JtVzpxUFYDrpkzFkNN-qKoiEavvevcgiiUjMehTcGTgA4mlxlwiRS4DMuZ-Y5")
-GEMINI_KEY = os.getenv("GEMINI_KEY")
+WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK")
+GEMINI_KEY = os.getenv("GEMINI_API_KEY") # เช็คชื่อตัวแปรใน GitHub ให้ตรงนะครับ
 client = genai.Client(api_key=GEMINI_KEY)
 
+def create_chart(df, ticker):
+    """ฟังก์ชันสร้างกราฟ"""
+    plt.figure(figsize=(10, 5))
+    plt.style.use('dark_background') # เปลี่ยนเป็น Dark Mode ให้ดูโปร
+    plt.plot(df.index[-30:], df['close'].tail(30), color='#00ff00', linewidth=2)
+    plt.title(f"{ticker} Price Action (Last 30 Days)")
+    plt.grid(True, alpha=0.3)
+    plt.savefig('chart.png')
+    plt.close()
+
 def ask_gemini(result: AnalysisResult):
-   
     prompt = f"""
-    คุณคือผู้เชี่ยวชาญด้านการลงทุนในตลาดหุ้น{result.ticker} จากข้อมูลชุดปัจจุบัน:
+    คุณคือผู้เชี่ยวชาญด้านการลงทุน วิเคราะห์หุ้น {result.ticker} จากข้อมูล:
     - ราคาปัจจุบัน: {result.current_price}
     - RSI: {result.rsi_14}
     - MACD: {result.macd_hist}
-    - การตัดสินใจ: {result.action.value}
+    - สัญญาณระบบ: {result.action.value}
+    ช่วยสรุป 3 บรรทัดสั้นๆ ว่าควรทำยังไง (ภาษาไทยเป็นกันเอง)
     """
     try:
+        # ใช้โมเดล 1.5-flash เพื่อความเสถียรและฟรี
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-1.5-flash",
             contents=prompt,
         )
         return response.text
     except Exception as e:
-        return f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}"
-
-    
+        return f"เกิดข้อผิดพลาดในการวิเคราะห์ AI: {str(e)}"
 
 def notify_discord(result: AnalysisResult, ai_insight: str):
-    """ฟังก์ชันส่งข้อมูลเข้า Discord"""
-
+    """ส่งข้อความพร้อมรูปเข้า Discord"""
     color = 0x2ecc71 if result.action == Action.BUY else \
             0xe74c3c if result.action == Action.SELL else 0xf1c40f
 
-    macd_icon =  "📈" if result.macd_hist > 0 else "📉"
-
+    # สร้าง Payload สำหรับ Embed
     payload = {
         "embeds": [{
             "title": f"🤖 AI Analyst Report: {result.ticker}",
             "description": ai_insight,
             "color": color,
+            "image": {"url": "attachment://chart.png"}, # อ้างอิงไฟล์ภาพ
             "fields": [
-                {"name": "💰Price", "value": f"**{result.current_price:,.2f}**", "inline": True},
-                {"name": "📊RSI", "value": f"**{result.rsi_14}**", "inline": True},
-                {"name": "📉MACD", "value": f"**{result.macd_hist}**", "inline": True},
-                {"name": "🎯Decition", "value": f"**{result.action.value}**", "inline": True},
-                {"name": "⏰Time", "value": f"**{result.timestamp}**", "inline": True}],
+                {"name": "💰 Price", "value": f"**{result.current_price:,.2f}**", "inline": True},
+                {"name": "📊 RSI", "value": f"**{result.rsi_14}**", "inline": True},
+                {"name": "📉 MACD", "value": f"**{result.macd_hist}**", "inline": True},
+                {"name": "🎯 Decision", "value": f"**{result.action.value}**", "inline": True}
+            ],
             "footer": {"text": f"Analysis at: {result.timestamp}"},
             "thumbnail": {"url": "https://cdn-icons-png.flaticon.com/512/2422/2422796.png"}
-
-
-
-
-
-
         }]
     }
+
     try:
+        # เปิดไฟล์ภาพและส่งไปพร้อมกับ JSON ในก้อนเดียว
         with open("chart.png", "rb") as f:
             files = {
                 "file": ("chart.png", f, "image/png")
             }
+            # ส่งแบบ Multipart form-data
+            response = requests.post(
+                WEBHOOK_URL,
+                data={"payload_json": json.dumps(payload)},
+                files=files
+            )
             
-        if response.status_code != 200 and response.status_code != 204:
-            print(f"ส่ง Discord ไม่สำเร็จ: {response.status_code} {response.text}")
+        if response.status_code in [200, 204]:
+            print("✅ ส่ง Discord พร้อมรูปสำเร็จ!")
         else:
-            print("ส่ง Discord สำเร็จ")
+            print(f"❌ ส่ง Discord ไม่สำเร็จ: {response.status_code} {response.text}")
     except FileNotFoundError:
-        print("ไม่พบไฟล์ chart.png")
-   # msg = {
-    #    "content": f"📊 **{result.ticker} Report**\nPrice: {result.current_price:,.2f}\nRSI: {result.rsi_14}\nDecision: **{result.action.value}**\nMACD: {result.macd_hist} {macd_icon}\n"
-    
-    
-    
-    #}
-    try:
-        # ใช้ requests (มี s) ที่เป็นมาตรฐาน
-        response = requests.post(WEBHOOK_URL, json=payload)
-        response.raise_for_status()
-    except Exception as e:
-        print(f"ส่ง Discord ไม่สำเร็จ: {e}")
+        print("❌ ไม่พบไฟล์ chart.png!")
 
 def analyze_market(ticker_symbol: str) -> AnalysisResult:
-    """วิเคราะห์ตลาดหุ้น"""
-    try:
-        df = yf.download(ticker_symbol, period="6mo", progress=False)
+    df = yf.download(ticker_symbol, period="6mo", progress=False)
+    if df.empty: raise ValueError("ไม่พบข้อมูลหุ้น")
+    
+    # จัดการชื่อ Column ให้เรียบง่าย
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    df.columns = df.columns.str.lower()
 
-        if df.empty or len(df) < 26:
-            raise ValueError("ข้อมูลไม่เพียงพอสำหรับการวิเคราะห์")
+    # คำนวณ Indicators
+    df["rsi"] = ta_lib.momentum.RSIIndicator(df["close"], window=14).rsi()
+    macd_obj = ta_lib.trend.MACD(df["close"])
+    df["macd_hist"] = macd_obj.macd_diff()
 
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
+    lasted_rsi = df["rsi"].iloc[-1]
+    lasted_close = df["close"].iloc[-1]
+    lasted_hist = df["macd_hist"].iloc[-1]
+    prev_hist = df["macd_hist"].iloc[-2]
 
-        df.columns = [str(col).capitalize() for col in df.columns]
-        df = df.copy()
-        df.columns = df.columns.str.lower()
-        # คำนวณ RSI
-        df["RSI_14"] = ta_lib.momentum.RSIIndicator(df["close"], window=14).rsi()
+    # Logic การตัดสินใจ
+    if lasted_rsi < 35 and lasted_hist > 0:
+        action = Action.BUY
+    elif lasted_rsi > 65 and lasted_hist < 0:
+        action = Action.SELL
+    else:
+        action = Action.HOLD
 
-        # คำนวณ MACD
-        macd_obj = ta_lib.trend.MACD(df["close"], window_slow=26,window_fast=12,window_sign=9)
-        df["MACD"] = macd_obj.macd()
-        df["MACD_SIGN"] = macd_obj.macd_signal()
-        df["MACD_HIST"] = macd_obj.macd_diff()
-        
-
-        rsi_col = [c for c in df.columns if 'RSI' in c.upper()]
-        if not rsi_col:
-            raise ValueError(f"คำนวณ RSI ไม่สำเร็จ:{df.columns.tolist()}")
-
-        lasted_rsi = float(df[rsi_col[0]].iloc[-1])
-        lasted_close = float(df['close'].iloc[-1])
-        lasted_hist = float(df["MACD_HIST"].iloc[-1])
-        prev_hist = float(df["MACD_HIST"].iloc[-2])
-        rsi_buy = lasted_rsi< 35
-        rsi_sell = lasted_rsi > 65
-        macd_buy = lasted_hist > 0 and lasted_hist > prev_hist
-        macd_sell = lasted_hist < 0 and lasted_hist < prev_hist
-
-        # Logic การตัดสินใจ (แก้คำผิดตรงนี้)
-        if rsi_buy and macd_buy:
-            action = Action.BUY
-        elif rsi_sell and macd_sell:
-            action = Action.SELL
-        else:
-            action = Action.HOLD
-
-        return AnalysisResult(
-            ticker=ticker_symbol,
-            current_price=round(lasted_close, 2),
-            rsi_14=round(lasted_rsi, 2),
-            macd_hist=round(lasted_hist, 4),
-            action=action,
-            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        )
-    except Exception as e:
-        print(f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}")
-        raise
-def create_chart(df, ticker):
-        plt.figure(figsize=(10, 5))
-        plt.plot(df.index. df['close'], label='Price',color='blue')
-        plt.totle(f"{ticker} Price Action")
-        plt.savefig( 'chart.png')
-        plt.close()
+    return AnalysisResult(
+        ticker=ticker_symbol,
+        current_price=round(lasted_close, 2),
+        rsi_14=round(lasted_rsi, 2),
+        macd_hist=round(lasted_hist, 4),
+        action=action,
+        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        df_history=df # ส่ง df ไปใช้วาดกราฟ
+    )
 
 if __name__ == "__main__":
     try:
+        # 1. วิเคราะห์ตลาด
         result = analyze_market(TICKER)
         
-        print("🤖 กำลังให้ AI ช่วยวิเคราะห์...")
+        # 2. วาดกราฟ
+        print("🎨 สร้างกราฟ...")
+        create_chart(result.df_history, TICKER)
+        
+        # 3. ให้ AI วิเคราะห์
+        print("🤖 AI กำลังคิด...")
         ai_insight = ask_gemini(result)
         
-        # อย่าลืมเรียกฟังก์ชันแจ้งเตือน!
+        # 4. ส่งแจ้งเตือน
         notify_discord(result, ai_insight)
-        print("🤖 AI วิเคราะห์เสร็จสิ้น:")
-        print(ai_insight)
+        
     except Exception as e:
-        print(f"เกิดข้อผิดพลาดในการวิเคราะห์: {str(e)}")
-        import sys
-        sys.exit(1)
+        print(f"❌ Error: {str(e)}")
