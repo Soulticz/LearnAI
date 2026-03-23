@@ -28,5 +28,5 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TICKER_SYMBOL: "^GSPC"
+          TICKER_SYMBOL: "^GSPC,GC=F,BTC-USD,NVDA"
         run: python stock_bot.py
