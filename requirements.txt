@@ -2,3 +2,5 @@ yfinance
 pandas
 pandas-ta
 requests
+google-genai
+matplotlib

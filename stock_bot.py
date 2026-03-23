@@ -53,7 +53,7 @@ def ask_gemini(result: AnalysisResult):
     try:
         # ใช้โมเดล 1.5-flash เพื่อความเสถียรและฟรี
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
         )
         return response.text
