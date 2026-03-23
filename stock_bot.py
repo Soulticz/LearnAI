@@ -26,7 +26,7 @@ class AnalysisResult:
     df_history: pd.DataFrame # เก็บข้อมูลไว้ทำกราฟ
 
 # --- Configuration ---
-TICKER = os.getenv("TICKER_SYMBOL", "^GSPC")
+TICKER = os.getenv("TICKER_SYMBOL", "^GSPC","GC=F","BTC-USD","NVDA")
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY") # เช็คชื่อตัวแปรใน GitHub ให้ตรงนะครับ
 client = genai.Client(api_key=GEMINI_KEY)
@@ -48,7 +48,8 @@ def ask_gemini(result: AnalysisResult):
     - RSI: {result.rsi_14}
     - MACD: {result.macd_hist}
     - สัญญาณระบบ: {result.action.value}
-    ช่วยสรุป 3 บรรทัดสั้นๆ ว่าควรทำยังไง (ภาษาไทยเป็นกันเอง)
+    หากเป็นทองคำ (GC=F) ให้เน้นวิเคราะห์ความผันผวนด้วย 
+    สรุป 3 ข้อสั้นๆ (ภาษาไทยกันเอง) แนะนำกลยุทธ์ ซื้อ/ขาย/ถือ
     """
     try:
         # ใช้โมเดล 1.5-flash เพื่อความเสถียรและฟรี
@@ -150,11 +151,12 @@ if __name__ == "__main__":
         create_chart(result.df_history, TICKER)
         
         # 3. ให้ AI วิเคราะห์
-        print("🤖 AI กำลังคิด...")
+        print(f"🤖 AI กำลังคิด...{TICKER}")
         ai_insight = ask_gemini(result)
         
         # 4. ส่งแจ้งเตือน
         notify_discord(result, ai_insight)
+        print(f"AI Insight: {TICKER}")
         
     except Exception as e:
         print(f"❌ Error: {str(e)}")
