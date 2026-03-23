@@ -83,11 +83,7 @@ def notify_discord(result: AnalysisResult, ai_insight: str):
             files = {
                 "file": ("chart.png", f, "image/png")
             }
-            response = requests.post(
-                WEBHOOK_URL,\
-                data={"payload_json": json.dumps(payload)},
-                files=fields
-            )
+            
         if response.status_code != 200 and response.status_code != 204:
             print(f"ส่ง Discord ไม่สำเร็จ: {response.status_code} {response.text}")
         else:
