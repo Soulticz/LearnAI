@@ -8,6 +8,7 @@ from datetime import datetime
 from enum import Enum
 import os
 from google import genai
+import matplotlib.pyplot as plt
 
 class Action(Enum):
     BUY = "🟢 ซื้อเพิ่ม (Oversold)"
@@ -69,7 +70,12 @@ def notify_discord(result: AnalysisResult, ai_insight: str):
                 {"name": "⏰Time", "value": f"**{result.timestamp}**", "inline": True}],
             "footer": {"text": f"Analysis at: {result.timestamp}"},
             "thumbnail": {"url": "https://cdn-icons-png.flaticon.com/512/2422/2422796.png"}
-    
+    def create_chart(df, ticker):
+        plt.figure(figsize=(10, 5))
+        plt.plot(df.index. df['close'], label='Price',color='blue')
+        plt.totle(f"{ticker} Price Action")
+        plt.savefig( 'chart.png')
+        plt.close()
 
 
 
