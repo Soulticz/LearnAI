@@ -78,6 +78,22 @@ def notify_discord(result: AnalysisResult, ai_insight: str):
 
         }]
     }
+    try:
+        with open("chart.png", "rb") as f:
+            files = {
+                "file": ("chart.png", f, "image/png")
+            }
+            response = requests.post(
+                WEBHOOK_URL,\
+                data={"payload_json": json.dumps(payload)},
+                files=fields
+            )
+        if response.status_code != 200 and response.status_code != 204:
+            print(f"ส่ง Discord ไม่สำเร็จ: {response.status_code} {response.text}")
+        else:
+            print("ส่ง Discord สำเร็จ")
+    except FileNotFoundError:
+        print("ไม่พบไฟล์ chart.png")
    # msg = {
     #    "content": f"📊 **{result.ticker} Report**\nPrice: {result.current_price:,.2f}\nRSI: {result.rsi_14}\nDecision: **{result.action.value}**\nMACD: {result.macd_hist} {macd_icon}\n"
     
