@@ -1,5 +1,6 @@
 import yfinance as yf
 import pandas as pd
+import pickle
 import ta as ta_lib
 import requests
 import json
@@ -31,6 +32,16 @@ watchlist = [t.strip() for t in TICKER.split(",")]
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY") # เช็คชื่อตัวแปรใน GitHub ให้ตรงนะครับ
 client = genai.Client(api_key=GEMINI_KEY)
+
+try:
+    with open("model.pkl", "rb") as f:
+        saved = pickle.load(f)
+        ML_MODEL = saved["model"]
+    print("✅ โหลดโมเดลสำเร็จ")
+except FileNotFoundError:
+    print("❌ ไม่พบไฟล์ model.pkl")
+    ML_MODEL = None
+    print("⚠️  ระบบจะทำงานในโหมด AI Only (ไม่มีการใช้ ML)")
 
 def ask_gemini(result: AnalysisResult):
     prompt = f"""
@@ -123,12 +134,49 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
     prev_hist = df["macd_hist"].iloc[-2]
 
     # Logic การตัดสินใจ
-    if lasted_rsi < 35 and lasted_hist > 0:
+    if lasted_rsi < 35 and lasted_hist >0:
         action = Action.BUY
-    elif lasted_rsi > 65 and lasted_hist < 0:
+    elif lasted_rsi > 65 and lasted_hist <0:
         action = Action.SELL
     else:
         action = Action.HOLD
+    
+    if ML_MODEL:
+        close = df["close"]
+        volume =  df["volume"]
+        feat_row = pd.DataFrame([{
+            "rsi": float(df["rsi"].iloc[-1]),
+            "macd": float(df["macd_hist"].iloc[-1]),
+            "macd_hist": float(df["macd_hist"].iloc[-1]),
+            "sma_20": float(close.rolling(20).mean().iloc[-1]),
+            "sma_50": float(close.rolling(50).mean().iloc[-1]),
+            "bb_upper": float(close.rolling(20).mean().iloc[-1] +2 * close.rolling(20).std().iloc[-1]),
+            "bb_lower": float(close.rolling(20).mean().iloc[-1] -2 * close.rolling(20).std().iloc[-1]),
+            "change_1d": float(close.pct_change(1).iloc[-1]),
+            "change_5d": float(close.pct_change(5).iloc[-1]),
+            "vol_ratio": float(volume.iloc[-1] / volume.rolling(20).mean().iloc[-1]),
+
+
+        }])
+
+        prob = ML_MODEL.predict_proba(feat_row)[0][1]
+        print(f"ความน่าจะเป็นที่ราคาจะขึ้น >1% ใน 5 วัน: {prob:.1%}")
+
+        if prob > 0.65:
+            action = Action.BUY
+        elif prob < 0.35:
+            action = Action.SELL
+        else:
+            action = Action.HOLD
+    else : 
+        print("⚠️  ไม่พบโมเดล ML กำลังใช้ Logic พื้นฐาน")
+        if lasted_rsi <35 and lasted_hist > 0:
+            action = Action.BUY
+        elif lasted_rsi > 65 and lasted_hist <0:
+            action = Action.SELL
+        else:
+            action = Action.HOLD
+
 
     return AnalysisResult(
         ticker=ticker_symbol,
@@ -160,3 +208,5 @@ if __name__ == "__main__":
         
         except Exception as e:
             print(f"❌{ticker} Error: {str(e)}")
+
+
