@@ -193,7 +193,10 @@ if __name__ == "__main__":
     print("🤖 AI Stock Bot กำลังทำงาน...")
     new_data = evaluate_old_signals()
     retrain_if_needed(new_data)
-    
+    from sklearn.metrics import accuracy_score
+    y_pred = model.predict(new_df)
+    acc = accuracy_score(new_y, y_pred)
+    print(f"ความแม่นยำของโมเดล: {acc:.1%}")
 
 
     for ticker in watchlist:
@@ -206,8 +209,14 @@ if __name__ == "__main__":
                 action=result.action.value,
                 price=result.current_price,
                 features={
-                    "rsi": result.rsi_14,
-                    "macd_hist": result.macd_hist
+                     "rsi":       result.rsi_14,
+                     "macd_hist": result.macd_hist,
+                     "sma_20":    float(result.df_history["close"].rolling(20).mean().iloc[-1]),
+                     "sma_50":    float(result.df_history["close"].rolling(50).mean().iloc[-1]),
+                     "change_1d": float(result.df_history["close"].pct_change(1).iloc[-1]),
+                     "change_5d": float(result.df_history["close"].pct_change(5).iloc[-1]),
+                     "vol_ratio": float(result.df_history["volume"].iloc[-1]
+                                     / result.df_history["volume"].rolling(20).mean().iloc[-1]),
                 }
 
             )
