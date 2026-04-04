@@ -32,7 +32,7 @@ def save_signal(ticker: str, action: str,
         json.dump(logs, f, indent=2 ,ensure_ascii=False)
     print(f"[LOG] Saved signal: {action} {ticker}")
 
-def evaluate_signals() -> list[dict]:
+def evaluate_old_signals() -> list[dict]:
     if not os.path.exists(LOG_FILE):
         print("[EVAL] No log file found")
         return []
