@@ -4,7 +4,7 @@ import json
 import os
 import pickle
 import pandas as pd
-from datatime import datatime
+from datetime import datetime
 from sklearn.metrics import accuracy_score
 import yfinance as yf
 
@@ -23,7 +23,7 @@ def save_signal(ticker: str, action: str,
         "action": action,
         "price": price,
         "features": features,
-        "timestamp": datatime.now().isoformat(),
+        "timestamp": datetime.now().isoformat(),
         "evauated": False,
         "correct": None,
     })
@@ -46,8 +46,8 @@ def evaluate_signals() -> list[dict]:
         if log["evauated"]:
             continue
 
-        signal_date = datatime.fromisoformat(log["timestamp"])
-        days_passed = (datatime.now() - signal_date).days
+        signal_date = datetime.fromisoformat(log["timestamp"])
+        days_passed = (datetime.now() - signal_date).days
 
         if days_passed < 5:
             continue
