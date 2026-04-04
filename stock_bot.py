@@ -193,10 +193,6 @@ if __name__ == "__main__":
     print("🤖 AI Stock Bot กำลังทำงาน...")
     new_data = evaluate_old_signals()
     retrain_if_needed(new_data)
-    from sklearn.metrics import accuracy_score
-    y_pred = model.predict(new_df)
-    acc = accuracy_score(new_y, y_pred)
-    print(f"ความแม่นยำของโมเดล: {acc:.1%}")
 
 
     for ticker in watchlist:
