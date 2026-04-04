@@ -30,3 +30,17 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TICKER_SYMBOL: "^GSPC,GC=F,BTC-USD,NVDA"
         run: python stock_bot.py
+      
+      - name: 5. Commit and Push changes
+        run: |
+          run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+          # เช็กว่ามีไฟล์สร้างขึ้นมาจริงไหมก่อน Add
+          git add signal_log.json model.pkl chart.png || echo "No files to add"
+          # บันทึกข้อมูล (ถ้าไม่มีอะไรเปลี่ยนจะไม่ Error)
+          git commit -m "🤖 Update logs and ML model [skip ci]" || echo "No changes to commit"
+          # ดันข้อมูลขึ้น Repo
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
