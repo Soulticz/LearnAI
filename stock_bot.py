@@ -10,7 +10,7 @@ from enum import Enum
 import os
 from google import genai
 import matplotlib.pyplot as plt
-
+from signal_log import save_signal, evaluate_old_signals, retrain_if_needed
 class Action(Enum):
     BUY = "🟢 ซื้อเพิ่ม (Oversold)"
     SELL = "🔴 ขายทำกำไร (Overbought)"
@@ -189,10 +189,28 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
     )
 
 if __name__ == "__main__":
+
+    print("🤖 AI Stock Bot กำลังทำงาน...")
+    new_data = evaluate_old_signals()
+    retrain_if_needed(new_data)
+    
+
+
     for ticker in watchlist:
         try:
         # 1. วิเคราะห์ตลาด
             result = analyze_market( ticker)
+
+            save_signal(
+                ticker=ticker,
+                action=result.action.value,
+                price=result.current_price,
+                features={
+                    "rsi": result.rsi_14,
+                    "macd_hist": result.macd_hist
+                }
+
+            )
         
         # 2. วาดกราฟ
             print("🎨 สร้างกราฟ...")
