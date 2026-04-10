@@ -13,8 +13,9 @@
       "vol_ratio": 0.8193469113412317
     },
     "timestamp": "2026-04-04T17:20:31.327858",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": false,
+    "change_pct": 3.68
   },
   {
     "ticker": "GC=F",
@@ -30,8 +31,9 @@
       "vol_ratio": 0.31365260626730407
     },
     "timestamp": "2026-04-04T17:20:42.180220",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": 3.03
   },
   {
     "ticker": "BTC-USD",
@@ -47,8 +49,9 @@
       "vol_ratio": 0.4366224981015582
     },
     "timestamp": "2026-04-04T17:20:53.040820",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": false,
+    "change_pct": 6.66
   },
   {
     "ticker": "NVDA",
@@ -64,8 +67,9 @@
       "vol_ratio": 0.8008637542673267
     },
     "timestamp": "2026-04-04T17:21:05.894596",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": 3.68
   },
   {
     "ticker": "^GSPC",
@@ -81,8 +85,9 @@
       "vol_ratio": 0.8193469113412317
     },
     "timestamp": "2026-04-05T03:52:05.570995",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": false,
+    "change_pct": 3.68
   },
   {
     "ticker": "GC=F",
@@ -98,8 +103,9 @@
       "vol_ratio": 0.31365260626730407
     },
     "timestamp": "2026-04-05T03:52:22.635434",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": 3.03
   },
   {
     "ticker": "BTC-USD",
@@ -115,8 +121,9 @@
       "vol_ratio": 0.4433721194818419
     },
     "timestamp": "2026-04-05T03:52:32.769676",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": false,
+    "change_pct": 7.07
   },
   {
     "ticker": "NVDA",
@@ -132,8 +139,9 @@
       "vol_ratio": 0.8008637542673267
     },
     "timestamp": "2026-04-05T03:52:45.388646",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": 3.68
   },
   {
     "ticker": "^GSPC",
@@ -404,6 +412,74 @@
       "vol_ratio": 0.860768545362426
     },
     "timestamp": "2026-04-09T03:45:27.945818",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "^GSPC",
+    "action": "🔴 ขายทำกำไร (Overbought)",
+    "price": 6824.66,
+    "features": {
+      "rsi": 60.58,
+      "macd_hist": 41.8814,
+      "sma_20": 6594.98154296875,
+      "sma_50": 6765.195390625,
+      "change_1d": 0.006170023529293189,
+      "change_5d": 0.0379206394056848,
+      "vol_ratio": 0.5457860901318355
+    },
+    "timestamp": "2026-04-10T03:57:41.641476",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "GC=F",
+    "action": "🟡 ถือไว้ก่อน (Neutral)",
+    "price": 4792.8,
+    "features": {
+      "rsi": 51.57,
+      "macd_hist": 28.2371,
+      "sma_20": 4695.4749755859375,
+      "sma_50": 4913.501982421875,
+      "change_1d": 0.009116708008737762,
+      "change_5d": 0.0020069428380622423,
+      "vol_ratio": 3.7345184200689454
+    },
+    "timestamp": "2026-04-10T03:57:55.457864",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "BTC-USD",
+    "action": "🟡 ถือไว้ก่อน (Neutral)",
+    "price": 71869.95,
+    "features": {
+      "rsi": 58.5,
+      "macd_hist": 538.8824,
+      "sma_20": 68679.659375,
+      "sma_50": 68868.2153125,
+      "change_1d": 0.010497056720332854,
+      "change_5d": 0.06805460836443089,
+      "vol_ratio": 1.1291245513908663
+    },
+    "timestamp": "2026-04-10T03:58:07.371952",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "NVDA",
+    "action": "🟡 ถือไว้ก่อน (Neutral)",
+    "price": 183.91,
+    "features": {
+      "rsi": 56.61,
+      "macd_hist": 1.3291,
+      "sma_20": 177.1459991455078,
+      "sma_50": 182.1297787475586,
+      "change_1d": 0.010050537196021558,
+      "change_5d": 0.0464296083192568,
+      "vol_ratio": 0.6830743743558969
+    },
+    "timestamp": "2026-04-10T03:58:18.893599",
     "evaluated": false,
     "correct": null
   }
