@@ -119,7 +119,7 @@ async def cmd_watchlist(update:Update,ctx: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             msg += f"Error{ticker}: {e}\n"
 
-    msg += f"\n {datetime.now().strftime("%H:%M:%S UTC")}"
+    msg += f"\n {datetime.now().strftime('%H:%M:%S UTC')}"
     await update.message.reply_text(msg,parse_mode="Markdown")
 
 async def cmd_accuracy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
