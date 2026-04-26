@@ -201,12 +201,16 @@ if __name__ == "__main__":
     if fx_results:
         fx_msg = format_fx_message(fx_results)
 
-        request.post(WEBHOOK_URL, json={
-
-            "content": fx_msg.replace("*","**")
+        print("💱 กำลังวิเคราะห์อัตราแลกเปลี่ยน...")
+    fx_results = analyze_all_fx()
+    if fx_results:
+        fx_msg = format_fx_message(fx_results)
+        # ส่ง Discord
+        requests.post(WEBHOOK_URL, json={
+            "content": fx_msg.replace("*", "**")
+                                .replace("`", "`")
         })
         print("✅ ส่ง FX report แล้ว")
-
     for ticker in watchlist:
         try:
         # 1. วิเคราะห์ตลาด
