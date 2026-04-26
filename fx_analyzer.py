@@ -1,7 +1,7 @@
 import pandas as pd
 import yfinance as yf 
 import ta as ta_lib
-from datatime import datetime
+from datetime import datetime
 from dataclasses import dataclass
 
 FX_PAIRS = {
