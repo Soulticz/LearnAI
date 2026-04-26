@@ -203,7 +203,7 @@ if __name__ == "__main__":
 
         request.post(WEBHOOK_URL, json={
 
-            "content": fx_msg.replace("*","**").replace("`","`")
+            "content": fx_msg.replace("*","**")
         })
         print("✅ ส่ง FX report แล้ว")
 
