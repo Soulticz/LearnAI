@@ -191,6 +191,18 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "S&P500: ^GSPC",
         parse_mode="Markdown"
     )
+
+async def cmd_fx(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🔍 กำลังวิเคราะห์ตลาด Forex...")
+
+    try:
+        from fx_analyzer import analyze_all_fx, format_fx_message
+        result = analyze_all_fx()
+        msg = format_fx_message(result)
+        await update.message.reply_text(msg, parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"เกิดข้อผิดพลาด: {e}")
+
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     
@@ -199,7 +211,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("watchlist", cmd_watchlist))
     app.add_handler(CommandHandler("accuracy", cmd_accuracy))
     app.add_handler(CommandHandler("help", cmd_help))
-
+    app.add_handler(CommandHandler("fx", cmd_fx))
     print("Bot is running...")
     app.run_polling()
  

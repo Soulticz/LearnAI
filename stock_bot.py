@@ -1,7 +1,9 @@
+from curl_cffi import request
 import yfinance as yf
 import pandas as pd
 import pickle
 import ta as ta_lib
+from fx_analyzer import analyze_all_fx, format_fx_message
 import requests
 import json
 from dataclasses import dataclass
@@ -194,6 +196,16 @@ if __name__ == "__main__":
     new_data = evaluate_old_signals()
     retrain_if_needed(new_data)
 
+    print("\n💰 วิเคราะห์อัตราแลกเปลี่ยน (FX)...")
+    fx_results = analyze_all_fx()
+    if fx_results:
+        fx_msg = format_fx_message(fx_results)
+
+        request.post(WEBHOOK_URL, jsonn={
+
+            "content": fx_msg.replace("*","**").replace("`","`")
+        })
+        print("✅ ส่ง FX report แล้ว")
 
     for ticker in watchlist:
         try:
