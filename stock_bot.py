@@ -201,7 +201,7 @@ if __name__ == "__main__":
     if fx_results:
         fx_msg = format_fx_message(fx_results)
 
-        request.post(WEBHOOK_URL, jsonn={
+        request.post(WEBHOOK_URL, json={
 
             "content": fx_msg.replace("*","**").replace("`","`")
         })
