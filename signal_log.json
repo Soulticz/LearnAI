@@ -2862,5 +2862,73 @@
     "timestamp": "2026-04-27T13:14:49.334702",
     "evaluated": false,
     "correct": null
+  },
+  {
+    "ticker": "^GSPC",
+    "action": "🔴 ขายทำกำไร (Overbought)",
+    "price": 7167.03,
+    "features": {
+      "rsi": 70.16,
+      "macd_hist": 33.3372,
+      "sma_20": 6873.938012695313,
+      "sma_50": 6795.95060546875,
+      "change_1d": 0.0002721123853455243,
+      "change_5d": 0.008142988789670902,
+      "vol_ratio": 0.28906836594567614
+    },
+    "timestamp": "2026-04-27T17:14:07.365790",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "GC=F",
+    "action": "🟡 ถือไว้ก่อน (Neutral)",
+    "price": 4690.1,
+    "features": {
+      "rsi": 45.83,
+      "macd_hist": 3.2139,
+      "sma_20": 4729.560009765625,
+      "sma_50": 4863.173984375,
+      "change_1d": -0.006818649463824267,
+      "change_5d": -0.02423750626910004,
+      "vol_ratio": 14.653821399017195
+    },
+    "timestamp": "2026-04-27T17:14:08.959886",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "BTC-USD",
+    "action": "🟡 ถือไว้ก่อน (Neutral)",
+    "price": 76701.3,
+    "features": {
+      "rsi": 57.43,
+      "macd_hist": 104.423,
+      "sma_20": 75206.71640625,
+      "sma_50": 71783.98359375,
+      "change_1d": -0.024870371115292556,
+      "change_5d": -0.0192039018593112,
+      "vol_ratio": 1.0425345112122584
+    },
+    "timestamp": "2026-04-27T17:14:22.407374",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "NVDA",
+    "action": "🟡 ถือไว้ก่อน (Neutral)",
+    "price": 213.86,
+    "features": {
+      "rsi": 74.89,
+      "macd_hist": 2.2176,
+      "sma_20": 190.7,
+      "sma_50": 185.56019073486328,
+      "change_1d": 0.02684014127438994,
+      "change_5d": 0.05839851130521767,
+      "vol_ratio": 0.6931071656243456
+    },
+    "timestamp": "2026-04-27T17:14:36.951438",
+    "evaluated": false,
+    "correct": null
   }
 ]
