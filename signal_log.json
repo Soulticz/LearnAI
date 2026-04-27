@@ -1255,8 +1255,9 @@
       "vol_ratio": 0.37468603792169414
     },
     "timestamp": "2026-04-21T04:10:03.419439",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": -2.06
   },
   {
     "ticker": "BTC-USD",
@@ -2583,6 +2584,74 @@
       "vol_ratio": 1.415379536778234
     },
     "timestamp": "2026-04-26T20:27:02.490382",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "^GSPC",
+    "action": "🔴 ขายทำกำไร (Overbought)",
+    "price": 7165.08,
+    "features": {
+      "rsi": 70.08,
+      "macd_hist": 38.5448,
+      "sma_20": 6834.029028320312,
+      "sma_50": 6789.265205078125,
+      "change_1d": 0.007973689797975636,
+      "change_5d": 0.0054756792968919665,
+      "vol_ratio": 0.9012042147565363
+    },
+    "timestamp": "2026-04-27T01:27:03.667554",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "GC=F",
+    "action": "🟡 ถือไว้ก่อน (Neutral)",
+    "price": 4708.3,
+    "features": {
+      "rsi": 46.85,
+      "macd_hist": 4.3754,
+      "sma_20": 4730.469995117188,
+      "sma_50": 4863.537978515625,
+      "change_1d": -0.002964657175324459,
+      "change_5d": -0.020451107013600422,
+      "vol_ratio": 5.760156738958883
+    },
+    "timestamp": "2026-04-27T01:27:14.669337",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "BTC-USD",
+    "action": "🔴 ขายทำกำไร (Overbought)",
+    "price": 78993.75,
+    "features": {
+      "rsi": 65.92,
+      "macd_hist": 288.2813,
+      "sma_20": 74985.497265625,
+      "sma_50": 71576.0775,
+      "change_1d": 0.017803098706728138,
+      "change_5d": 0.03458913728473556,
+      "vol_ratio": 0.6366402011417884
+    },
+    "timestamp": "2026-04-27T01:27:15.763279",
+    "evaluated": false,
+    "correct": null
+  },
+  {
+    "ticker": "NVDA",
+    "action": "🟡 ถือไว้ก่อน (Neutral)",
+    "price": 208.27,
+    "features": {
+      "rsi": 71.5,
+      "macd_hist": 1.9307,
+      "sma_20": 188.38300018310548,
+      "sma_50": 185.0215884399414,
+      "change_1d": 0.04322783464835034,
+      "change_5d": 0.032675584272128244,
+      "vol_ratio": 1.415379536778234
+    },
+    "timestamp": "2026-04-27T01:27:16.793194",
     "evaluated": false,
     "correct": null
   }
