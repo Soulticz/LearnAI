@@ -5,3 +5,4 @@ requests
 google-genai
 matplotlib
 scikit-learn
+anthropic

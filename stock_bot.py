@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 import os
-from google import genai
+import anthropic
 import matplotlib.pyplot as plt
 from signal_log import save_signal, evaluate_old_signals, retrain_if_needed
 class Action(Enum):
@@ -32,9 +32,10 @@ class AnalysisResult:
 TICKER = os.getenv("TICKER_SYMBOL", "^GSPC,GC=F,BTC-USD,NVDA")
 watchlist = [t.strip() for t in TICKER.split(",")]
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK")
-GEMINI_KEY = os.getenv("GEMINI_API_KEY") # เช็คชื่อตัวแปรใน GitHub ให้ตรงนะครับ
-client = genai.Client(api_key=GEMINI_KEY)
-
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+#GEMINI_KEY = os.getenv("GEMINI_API_KEY") # เช็คชื่อตัวแปรใน GitHub ให้ตรงนะครับ
+#client = genai.Client(api_key=GEMINI_KEY)
+cliant = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 try:
     with open("model.pkl", "rb") as f:
         saved = pickle.load(f)
@@ -45,7 +46,7 @@ except FileNotFoundError:
     ML_MODEL = None
     print("⚠️  ระบบจะทำงานในโหมด AI Only (ไม่มีการใช้ ML)")
 
-def ask_gemini(result: AnalysisResult):
+def ask_claude(result: AnalysisResult):
     prompt = f"""
     คุณคือผู้เชี่ยวชาญด้านการลงทุน วิเคราะห์หุ้น {result.ticker} จากข้อมูล:
     - ราคาปัจจุบัน: {result.current_price}
@@ -57,9 +58,12 @@ def ask_gemini(result: AnalysisResult):
     """
     try:
         # ใช้โมเดล 1.5-flash เพื่อความเสถียรและฟรี
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
+        response = cliant.messages.create(
+            model="claude-4-5-haiku",
+            max_tokens=500,
+            messages=[
+                {"role": "user", "content":prompt}
+            ]
         )
         return response.text
     except Exception as e:
@@ -239,7 +243,7 @@ if __name__ == "__main__":
         
         # 3. ให้ AI วิเคราะห์
             print(f"🤖 AI กำลังคิด...{ticker}")
-            ai_insight = ask_gemini(result)
+            ai_insight = ask_claude(result)
         
         # 4. ส่งแจ้งเตือน
             notify_discord(result, ai_insight)
