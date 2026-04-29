@@ -65,7 +65,7 @@ def ask_claude(result: AnalysisResult):
                 {"role": "user", "content":prompt}
             ]
         )
-        return response.text
+        return response.content[0].text
     except Exception as e:
         return f"เกิดข้อผิดพลาดในการวิเคราะห์ AI: {str(e)}"
 
