@@ -1,5 +1,4 @@
 from pandas.core import window
-from Testdevops.stock_bot import ML_MODEL
 from copyreg import pickle
 from numpy import save
 import yfinance as yf
