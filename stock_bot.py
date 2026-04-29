@@ -59,7 +59,7 @@ def ask_claude(result: AnalysisResult):
     try:
         # ใช้โมเดล 1.5-flash เพื่อความเสถียรและฟรี
         response = cliant.messages.create(
-            model="claude-4-5-haiku",
+            model="claude-haiku-4-5-20251001",
             max_tokens=500,
             messages=[
                 {"role": "user", "content":prompt}
