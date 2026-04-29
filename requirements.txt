@@ -6,3 +6,4 @@ google-genai
 matplotlib
 scikit-learn
 anthropic
+pandas==2.2.2

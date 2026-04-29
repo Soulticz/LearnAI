@@ -9,6 +9,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from screener import run_screener, format_screener_message
 import os
 import anthropic
 import matplotlib.pyplot as plt
@@ -35,7 +36,7 @@ WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 #GEMINI_KEY = os.getenv("GEMINI_API_KEY") # เช็คชื่อตัวแปรใน GitHub ให้ตรงนะครับ
 #client = genai.Client(api_key=GEMINI_KEY)
-cliant = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 try:
     with open("model.pkl", "rb") as f:
         saved = pickle.load(f)
@@ -62,7 +63,7 @@ def ask_claude(result: AnalysisResult):
     ตอบเป็นภาษาไทย กระชับ เข้าใจง่าย"""
     try:
         # ใช้โมเดล 1.5-flash เพื่อความเสถียรและฟรี
-        response = cliant.messages.create(
+        response = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=500,
             messages=[
@@ -204,12 +205,16 @@ if __name__ == "__main__":
     new_data = evaluate_old_signals()
     retrain_if_needed(new_data)
 
-    print("\n💰 วิเคราะห์อัตราแลกเปลี่ยน (FX)...")
-    fx_results = analyze_all_fx()
-    if fx_results:
-        fx_msg = format_fx_message(fx_results)
+    print("\n🤖 กำลังวิเคราะห์หุ้น...")
+    top5 = run_screener(top_n=5)
+    msg = format_screener_message(top5)
+    requests.post(WEBHOOK_URL, json={
+        "content": msg})
+    print("✅ ส่ง Screener report แล้ว")
 
-        print("💱 กำลังวิเคราะห์อัตราแลกเปลี่ยน...")
+    
+
+    print("💱 กำลังวิเคราะห์อัตราแลกเปลี่ยน...")
     fx_results = analyze_all_fx()
     if fx_results:
         fx_msg = format_fx_message(fx_results)
@@ -238,7 +243,7 @@ if __name__ == "__main__":
                      "vol_ratio": float(result.df_history["volume"].iloc[-1]
                                      / result.df_history["volume"].rolling(20).mean().iloc[-1]),
                 }
-
+       
             )
         
         # 2. วาดกราฟ
