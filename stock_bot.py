@@ -47,15 +47,19 @@ except FileNotFoundError:
     print("⚠️  ระบบจะทำงานในโหมด AI Only (ไม่มีการใช้ ML)")
 
 def ask_claude(result: AnalysisResult):
-    prompt = f"""
-    คุณคือผู้เชี่ยวชาญด้านการลงทุน วิเคราะห์หุ้น {result.ticker} จากข้อมูล:
-    - ราคาปัจจุบัน: {result.current_price}
-    - RSI: {result.rsi_14}
-    - MACD: {result.macd_hist}
-    - สัญญาณระบบ: {result.action.value}
-    หากเป็นทองคำ (GC=F) ให้เน้นวิเคราะห์ความผันผวนด้วย 
-    สรุป 3 ข้อสั้นๆ (ภาษาไทยกันเอง) แนะนำกลยุทธ์ ซื้อ/ขาย/ถือ
-    """
+    prompt = f"""คุณคือนักวิเคราะห์การลงทุนมืออาชีพ
+    วิเคราะห์ {result.ticker} จากข้อมูลเชิงเทคนิค:
+    ราคา  : {result.current_price:,.2f}
+    RSI   : {result.rsi_14} 
+    MACD  : {result.macd_hist}
+    Signal: {result.action.value}
+    
+    กรุณาวิเคราะห์ 3 ข้อ:
+    1. สภาวะตลาดตอนนี้เป็นอย่างไร
+    2. ความเสี่ยงที่ต้องระวัง
+    3. กลยุทธ์แนะนำ (ซื้อ/ขาย/ถือ) พร้อมเหตุผล
+
+    ตอบเป็นภาษาไทย กระชับ เข้าใจง่าย"""
     try:
         # ใช้โมเดล 1.5-flash เพื่อความเสถียรและฟรี
         response = cliant.messages.create(
