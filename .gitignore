@@ -1,0 +1,36 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment variables / secrets
+.env
+.env.*
+
+# Generated charts/images
+chart.png
+backtest_*.png
+*.png
+
+# Generated backtest / strategy reports
+backtest_summary.csv
+strategy_modes.csv
+
+# Local paper trading state
+paper_portfolio.json
+
+# Logs / temporary files
+*.log
+.tmp/
+tmp/
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
