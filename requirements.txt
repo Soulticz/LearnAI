@@ -1,9 +1,11 @@
 yfinance
 pandas
-ta
+pandas-ta
 requests
 google-genai
 matplotlib
 scikit-learn
 anthropic
+ta
 curl_cffi
+pandas==2.2.2

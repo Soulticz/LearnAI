@@ -7,6 +7,7 @@ from fx_analyzer import analyze_all_fx, format_fx_message
 import requests
 import json
 from dataclasses import dataclass
+from curl_cffi import request
 from datetime import datetime
 from enum import Enum
 from screener import run_screener, format_screener_message
