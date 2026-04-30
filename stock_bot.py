@@ -14,6 +14,11 @@ import os
 import anthropic
 import matplotlib.pyplot as plt
 from signal_log import save_signal, evaluate_old_signals, retrain_if_needed
+try:
+    from strategy_selector import get_strategy_mode
+except Exception:
+    get_strategy_mode = None
+
 class Action(Enum):
     BUY = "🟢 ซื้อเพิ่ม (Oversold)"
     SELL = "🔴 ขายทำกำไร (Overbought)"
@@ -30,6 +35,8 @@ class AnalysisResult:
     df_history: pd.DataFrame # เก็บข้อมูลไว้ทำกราฟ
     ml_probability: float | None = None
     decision_reasons: list[str] | None = None
+    strategy_mode: str = "UNKNOWN"
+    strategy_reason: str = "ยังไม่มีข้อมูล strategy selector"
 
 # --- Configuration ---
 TICKER = os.getenv("TICKER_SYMBOL", "^GSPC,GC=F,BTC-USD,NVDA")
@@ -51,6 +58,17 @@ except FileNotFoundError:
     ML_FEATURES = None
     print("⚠️  ระบบจะทำงานในโหมด AI Only (ไม่มีการใช้ ML)")
 
+def load_strategy_info(ticker: str):
+    if get_strategy_mode is None:
+        return "UNKNOWN", "ยังโหลด strategy_selector ไม่ได้"
+    try:
+        strategy = get_strategy_mode(ticker)
+        if strategy is None:
+            return "UNKNOWN", "ยังไม่มีข้อมูล backtest/strategy ของ ticker นี้"
+        return strategy.mode, strategy.reason
+    except Exception as e:
+        return "UNKNOWN", f"อ่าน strategy_modes ไม่ได้: {str(e)}"
+
 def ask_claude(result: AnalysisResult):
     reasons_text = "\n".join(f"- {reason}" for reason in (result.decision_reasons or []))
     ml_text = "ไม่มีข้อมูล ML" if result.ml_probability is None else f"{result.ml_probability:.1%}"
@@ -61,14 +79,22 @@ def ask_claude(result: AnalysisResult):
     MACD Histogram : {result.macd_hist}
     ML Probability ราคาขึ้น >1% ใน 5 วัน: {ml_text}
     Final Signal: {result.action.value}
+    Strategy Mode จาก Backtest: {result.strategy_mode}
+    Strategy Reason: {result.strategy_reason}
 
     เหตุผลจาก Decision Engine:
     {reasons_text}
 
-    กรุณาวิเคราะห์ 3 ข้อโดยให้สอดคล้องกับ Final Signal เท่านั้น:
+    กรุณาวิเคราะห์ 3 ข้อโดยให้สอดคล้องกับ Final Signal และ Strategy Mode:
     1. สภาวะตลาดตอนนี้เป็นอย่างไร
     2. ความเสี่ยงที่ต้องระวัง
     3. กลยุทธ์แนะนำ (ซื้อ/ขาย/ถือ) พร้อมเหตุผล
+
+    กติกาสำคัญ:
+    - ถ้า Strategy Mode เป็น HOLD ให้ย้ำว่าไม่ควรขายหมดตามสัญญาณสั้น ๆ
+    - ถ้า Strategy Mode เป็น HYBRID ให้แนะนำถือบางส่วนและให้ AI ช่วยจับจังหวะบางส่วน
+    - ถ้า Strategy Mode เป็น WATCH ให้ระวังและรอสัญญาณชัดขึ้น
+    - ถ้า Strategy Mode เป็น AVOID ให้เน้นหลีกเลี่ยง/ลดความเสี่ยง
 
     ตอบเป็นภาษาไทย กระชับ เข้าใจง่าย"""
     try:
@@ -103,7 +129,9 @@ def notify_discord(result: AnalysisResult, ai_insight: str):
                 {"name": "📊 RSI", "value": f"**{result.rsi_14}**", "inline": True},
                 {"name": "📉 MACD Hist", "value": f"**{result.macd_hist}**", "inline": True},
                 {"name": "🤖 ML Prob", "value": ml_value, "inline": True},
-                {"name": "🎯 Decision", "value": f"**{result.action.value}**", "inline": True}
+                {"name": "🎯 Decision", "value": f"**{result.action.value}**", "inline": True},
+                {"name": "🧭 Strategy", "value": f"**{result.strategy_mode}**", "inline": True},
+                {"name": "📌 Strategy Reason", "value": result.strategy_reason[:1024], "inline": False}
             ],
             "footer": {"text": f"Analysis at: {result.timestamp}"},
             "thumbnail": {"url": "https://cdn-icons-png.flaticon.com/512/2422/2422796.png"}
@@ -222,6 +250,7 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         print("⚠️  ไม่พบโมเดล ML กำลังใช้ Logic พื้นฐาน")
 
     action, reasons = make_decision(lasted_rsi, lasted_hist, prob)
+    strategy_mode, strategy_reason = load_strategy_info(ticker_symbol)
 
     return AnalysisResult(
         ticker=ticker_symbol,
@@ -233,6 +262,8 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         df_history=df, # ส่ง df ไปใช้วาดกราฟ
         ml_probability=prob,
         decision_reasons=reasons,
+        strategy_mode=strategy_mode,
+        strategy_reason=strategy_reason,
     )
 
 if __name__ == "__main__":
