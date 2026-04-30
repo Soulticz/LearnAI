@@ -4,6 +4,7 @@ import json
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+import yfinance as yf
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKTEST_FILE = ROOT / "backtest_summary.csv"
@@ -23,6 +24,8 @@ MODE_COLORS = {
     "AVOID": "#dc2626",
     "UNKNOWN": "#6b7280",
 }
+
+DEFAULT_LIVE_TICKERS = ["AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "TSLA", "AMD", "SPY", "QQQ"]
 
 st.markdown(
     """
@@ -58,7 +61,7 @@ st.markdown(
 )
 
 st.title("📈 SoulQuant Dashboard")
-st.caption("AI Stock Analyst • Backtest • Strategy Selector • Paper Portfolio")
+st.caption("AI Stock Analyst • Backtest • Strategy Selector • Paper Portfolio • Live Market")
 
 
 def load_csv(path: Path) -> pd.DataFrame | None:
@@ -100,6 +103,28 @@ def render_pick_card(row: pd.Series):
     )
 
 
+@st.cache_data(ttl=300)
+def fetch_live_prices(tickers: list[str]) -> pd.DataFrame:
+    rows = []
+    for ticker in tickers:
+        try:
+            data = yf.download(ticker, period="5d", interval="1d", progress=False)
+            if data.empty:
+                continue
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = data.columns.get_level_values(0)
+            data.columns = data.columns.str.lower()
+            latest = data.iloc[-1]
+            prev = data.iloc[-2] if len(data) > 1 else latest
+            price = float(latest["close"])
+            prev_close = float(prev["close"])
+            change_pct = ((price - prev_close) / prev_close * 100) if prev_close else 0
+            rows.append({"ticker": ticker, "price": price, "change_1d_pct": change_pct})
+        except Exception as e:
+            rows.append({"ticker": ticker, "price": None, "change_1d_pct": None, "error": str(e)})
+    return pd.DataFrame(rows)
+
+
 backtest_df = load_csv(BACKTEST_FILE)
 strategy_df = load_csv(STRATEGY_FILE)
 portfolio = load_portfolio(PORTFOLIO_FILE)
@@ -112,6 +137,10 @@ with st.sidebar:
     st.divider()
     st.caption("ถ้าไฟล์ไม่ขึ้น ให้รัน:")
     st.code("python backtest.py\npython strategy_selector.py\npython paper_trading.py", language="powershell")
+    st.divider()
+    if st.button("🔄 Refresh live prices"):
+        fetch_live_prices.clear()
+        st.rerun()
 
 # Top Action Panel
 st.subheader("⚡ Top Action Panel")
@@ -166,11 +195,12 @@ else:
 
 st.divider()
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📒 Portfolio",
     "🧭 Strategy Modes",
     "📊 Backtest",
     "🔎 Stock Detail",
+    "📡 Live Market",
 ])
 
 with tab1:
@@ -301,3 +331,45 @@ with tab4:
         })
         fig = px.bar(compare_df, x="strategy", y="return_pct", title=f"{ticker} Return Comparison")
         st.plotly_chart(fig, use_container_width=True)
+
+with tab5:
+    st.subheader("📡 Live Market")
+    st.caption("ใช้ yfinance ฟรี ข้อมูลอาจ delay และไม่ใช่ real-time ระดับวินาที")
+
+    if strategy_df is not None:
+        default_options = strategy_df["ticker"].tolist()
+    else:
+        default_options = DEFAULT_LIVE_TICKERS
+
+    selected_tickers = st.multiselect(
+        "เลือก ticker",
+        options=default_options,
+        default=[t for t in DEFAULT_LIVE_TICKERS if t in default_options][:8] or default_options[:8],
+    )
+
+    if selected_tickers:
+        live_df = fetch_live_prices(selected_tickers)
+        if strategy_df is not None and not live_df.empty:
+            live_df = live_df.merge(strategy_df[["ticker", "mode", "reason"]], on="ticker", how="left")
+            live_df["mode"] = live_df["mode"].fillna("UNKNOWN")
+
+        if not live_df.empty:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Tickers", len(live_df))
+            c2.metric("Up Today", int((live_df["change_1d_pct"] > 0).sum()))
+            c3.metric("Down Today", int((live_df["change_1d_pct"] < 0).sum()))
+
+            fig = px.bar(
+                live_df.dropna(subset=["change_1d_pct"]),
+                x="ticker",
+                y="change_1d_pct",
+                color="mode" if "mode" in live_df.columns else None,
+                color_discrete_map=MODE_COLORS,
+                title="1D Change %",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            st.dataframe(live_df, use_container_width=True)
+        else:
+            st.warning("ดึงข้อมูลราคาไม่สำเร็จ")
+    else:
+        st.info("เลือก ticker ก่อน")
