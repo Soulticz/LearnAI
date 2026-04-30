@@ -16,6 +16,47 @@ st.set_page_config(
     layout="wide",
 )
 
+MODE_COLORS = {
+    "HYBRID": "#16a34a",
+    "HOLD": "#2563eb",
+    "WATCH": "#ca8a04",
+    "AVOID": "#dc2626",
+    "UNKNOWN": "#6b7280",
+}
+
+st.markdown(
+    """
+    <style>
+    .sq-card {
+        padding: 18px;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(255,255,255,0.04);
+        min-height: 132px;
+    }
+    .sq-mode {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        color: white;
+        font-weight: 700;
+        font-size: 0.85rem;
+        margin-bottom: 8px;
+    }
+    .sq-title {
+        font-size: 1.35rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+    .sq-subtle {
+        color: rgba(255,255,255,0.70);
+        font-size: 0.92rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("📈 SoulQuant Dashboard")
 st.caption("AI Stock Analyst • Backtest • Strategy Selector • Paper Portfolio")
 
@@ -33,6 +74,32 @@ def load_portfolio(path: Path) -> dict | None:
         return json.load(f)
 
 
+def mode_badge(mode: str) -> str:
+    color = MODE_COLORS.get(str(mode).upper(), MODE_COLORS["UNKNOWN"])
+    return f"<span class='sq-mode' style='background:{color}'>{mode}</span>"
+
+
+def render_pick_card(row: pd.Series):
+    mode = str(row.get("mode", "UNKNOWN"))
+    ticker = str(row.get("ticker", "-"))
+    reason = str(row.get("reason", ""))
+    hybrid_return = float(row.get("hybrid_return_pct", 0))
+    buy_hold = float(row.get("buy_hold_pct", 0))
+    alpha = float(row.get("hybrid_alpha_vs_hold_pct", 0))
+    st.markdown(
+        f"""
+        <div class="sq-card">
+            {mode_badge(mode)}
+            <div class="sq-title">{ticker}</div>
+            <div class="sq-subtle">Hybrid: <b>{hybrid_return:+.2f}%</b> • B&H: <b>{buy_hold:+.2f}%</b></div>
+            <div class="sq-subtle">Alpha: <b>{alpha:+.2f}%</b></div>
+            <div class="sq-subtle" style="margin-top:8px;">{reason[:160]}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 backtest_df = load_csv(BACKTEST_FILE)
 strategy_df = load_csv(STRATEGY_FILE)
 portfolio = load_portfolio(PORTFOLIO_FILE)
@@ -46,6 +113,58 @@ with st.sidebar:
     st.caption("ถ้าไฟล์ไม่ขึ้น ให้รัน:")
     st.code("python backtest.py\npython strategy_selector.py\npython paper_trading.py", language="powershell")
 
+# Top Action Panel
+st.subheader("⚡ Top Action Panel")
+if strategy_df is None:
+    st.warning("ยังไม่พบ strategy_modes.csv ให้รัน python strategy_selector.py ก่อน")
+else:
+    hybrid_top = strategy_df[strategy_df["mode"] == "HYBRID"].sort_values("hybrid_alpha_vs_hold_pct", ascending=False).head(3)
+    hold_top = strategy_df[strategy_df["mode"] == "HOLD"].sort_values("buy_hold_pct", ascending=False).head(3)
+    watch_top = strategy_df[strategy_df["mode"] == "WATCH"].sort_values("hybrid_alpha_vs_hold_pct", ascending=False).head(3)
+    avoid_top = strategy_df[strategy_df["mode"] == "AVOID"].sort_values("hybrid_max_drawdown_pct", ascending=True).head(3)
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown("### 🟢 Best HYBRID")
+        if hybrid_top.empty:
+            st.caption("ยังไม่มี")
+        else:
+            render_pick_card(hybrid_top.iloc[0])
+    with c2:
+        st.markdown("### 🔵 Best HOLD")
+        if hold_top.empty:
+            st.caption("ยังไม่มี")
+        else:
+            render_pick_card(hold_top.iloc[0])
+    with c3:
+        st.markdown("### 🟡 WATCH")
+        if watch_top.empty:
+            st.caption("ยังไม่มี")
+        else:
+            render_pick_card(watch_top.iloc[0])
+    with c4:
+        st.markdown("### 🔴 AVOID")
+        if avoid_top.empty:
+            st.caption("ยังไม่มี")
+        else:
+            render_pick_card(avoid_top.iloc[0])
+
+    with st.expander("ดู Top Picks ทั้งหมด"):
+        col1, col2, col3, col4 = st.columns(4)
+        for col, title, data in [
+            (col1, "🟢 HYBRID", hybrid_top),
+            (col2, "🔵 HOLD", hold_top),
+            (col3, "🟡 WATCH", watch_top),
+            (col4, "🔴 AVOID", avoid_top),
+        ]:
+            with col:
+                st.markdown(f"#### {title}")
+                if data.empty:
+                    st.caption("ไม่มีข้อมูล")
+                else:
+                    st.dataframe(data[["ticker", "mode", "hybrid_return_pct", "buy_hold_pct", "hybrid_alpha_vs_hold_pct"]], use_container_width=True)
+
+st.divider()
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "📒 Portfolio",
@@ -109,7 +228,14 @@ with tab2:
         with c1:
             st.dataframe(mode_counts, use_container_width=True)
         with c2:
-            fig = px.bar(mode_counts, x="mode", y="count", title="Strategy Mode Count")
+            fig = px.bar(
+                mode_counts,
+                x="mode",
+                y="count",
+                title="Strategy Mode Count",
+                color="mode",
+                color_discrete_map=MODE_COLORS,
+            )
             st.plotly_chart(fig, use_container_width=True)
 
         mode_filter = st.multiselect(
@@ -117,8 +243,14 @@ with tab2:
             options=sorted(strategy_df["mode"].unique()),
             default=sorted(strategy_df["mode"].unique()),
         )
-        filtered = strategy_df[strategy_df["mode"].isin(mode_filter)]
-        st.dataframe(filtered, use_container_width=True)
+        filtered = strategy_df[strategy_df["mode"].isin(mode_filter)].copy()
+        st.dataframe(
+            filtered.style.apply(
+                lambda row: [f"background-color: {MODE_COLORS.get(row['mode'], '#6b7280')}33"] * len(row),
+                axis=1,
+            ),
+            use_container_width=True,
+        )
 
 with tab3:
     st.subheader("📊 Backtest Summary")
@@ -160,7 +292,8 @@ with tab4:
         c4.metric("Hybrid DD", f"{row['hybrid_max_drawdown_pct']:.2f}%")
 
         if strategy_row is not None:
-            st.info(f"Strategy: {strategy_row['mode']} — {strategy_row['reason']}")
+            st.markdown(f"{mode_badge(strategy_row['mode'])}", unsafe_allow_html=True)
+            st.info(f"{strategy_row['reason']}")
 
         compare_df = pd.DataFrame({
             "strategy": ["AI", "Hybrid", "Buy & Hold"],
