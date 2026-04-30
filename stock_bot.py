@@ -22,12 +22,14 @@ class Action(Enum):
 @dataclass
 class AnalysisResult:
     ticker: str
-    action: Action 
+    action: Action
     current_price: float
     macd_hist: float
     rsi_14: float
     timestamp: str
     df_history: pd.DataFrame # เก็บข้อมูลไว้ทำกราฟ
+    ml_probability: float | None = None
+    decision_reasons: list[str] | None = None
 
 # --- Configuration ---
 TICKER = os.getenv("TICKER_SYMBOL", "^GSPC,GC=F,BTC-USD,NVDA")
@@ -41,21 +43,29 @@ try:
     with open("model.pkl", "rb") as f:
         saved = pickle.load(f)
         ML_MODEL = saved["model"]
+        ML_FEATURES = saved.get("features")
     print("✅ โหลดโมเดลสำเร็จ")
 except FileNotFoundError:
     print("❌ ไม่พบไฟล์ model.pkl")
     ML_MODEL = None
+    ML_FEATURES = None
     print("⚠️  ระบบจะทำงานในโหมด AI Only (ไม่มีการใช้ ML)")
 
 def ask_claude(result: AnalysisResult):
+    reasons_text = "\n".join(f"- {reason}" for reason in (result.decision_reasons or []))
+    ml_text = "ไม่มีข้อมูล ML" if result.ml_probability is None else f"{result.ml_probability:.1%}"
     prompt = f"""คุณคือนักวิเคราะห์การลงทุนมืออาชีพ
     วิเคราะห์ {result.ticker} จากข้อมูลเชิงเทคนิค:
     ราคา  : {result.current_price:,.2f}
-    RSI   : {result.rsi_14} 
-    MACD  : {result.macd_hist}
-    Signal: {result.action.value}
-    
-    กรุณาวิเคราะห์ 3 ข้อ:
+    RSI   : {result.rsi_14}
+    MACD Histogram : {result.macd_hist}
+    ML Probability ราคาขึ้น >1% ใน 5 วัน: {ml_text}
+    Final Signal: {result.action.value}
+
+    เหตุผลจาก Decision Engine:
+    {reasons_text}
+
+    กรุณาวิเคราะห์ 3 ข้อโดยให้สอดคล้องกับ Final Signal เท่านั้น:
     1. สภาวะตลาดตอนนี้เป็นอย่างไร
     2. ความเสี่ยงที่ต้องระวัง
     3. กลยุทธ์แนะนำ (ซื้อ/ขาย/ถือ) พร้อมเหตุผล
@@ -79,6 +89,8 @@ def notify_discord(result: AnalysisResult, ai_insight: str):
     color = 0x2ecc71 if result.action == Action.BUY else \
             0xe74c3c if result.action == Action.SELL else 0xf1c40f
 
+    ml_value = "N/A" if result.ml_probability is None else f"**{result.ml_probability:.1%}**"
+
     # สร้าง Payload สำหรับ Embed
     payload = {
         "embeds": [{
@@ -89,7 +101,8 @@ def notify_discord(result: AnalysisResult, ai_insight: str):
             "fields": [
                 {"name": "💰 Price", "value": f"**{result.current_price:,.2f}**", "inline": True},
                 {"name": "📊 RSI", "value": f"**{result.rsi_14}**", "inline": True},
-                {"name": "📉 MACD", "value": f"**{result.macd_hist}**", "inline": True},
+                {"name": "📉 MACD Hist", "value": f"**{result.macd_hist}**", "inline": True},
+                {"name": "🤖 ML Prob", "value": ml_value, "inline": True},
                 {"name": "🎯 Decision", "value": f"**{result.action.value}**", "inline": True}
             ],
             "footer": {"text": f"Analysis at: {result.timestamp}"},
@@ -109,7 +122,7 @@ def notify_discord(result: AnalysisResult, ai_insight: str):
                 data={"payload_json": json.dumps(payload)},
                 files=files
             )
-            
+
         if response.status_code in [200, 204]:
             print("✅ ส่ง Discord พร้อมรูปสำเร็จ!")
         else:
@@ -125,10 +138,48 @@ def create_chart(df, ticker):
     plt.grid(True, alpha=0.3)
     plt.savefig('chart.png')
     plt.close()
+
+def make_decision(rsi, macd_hist, prob=None):
+    """รวม Rule + ML เป็น decision เดียว เพื่อลดสัญญาณขัดกันเอง"""
+    score = 0
+    reasons = []
+
+    if rsi < 35:
+        score += 1
+        reasons.append("RSI ต่ำ มีโอกาสเด้ง")
+    elif rsi > 65:
+        score -= 1
+        reasons.append("RSI สูง ระวังย่อตัว")
+    else:
+        reasons.append("RSI อยู่โซนกลาง ยังไม่สุดทาง")
+
+    if macd_hist > 0:
+        score += 1
+        reasons.append("MACD Histogram เป็นบวก โมเมนตัมยังดี")
+    else:
+        score -= 1
+        reasons.append("MACD Histogram เป็นลบ โมเมนตัมอ่อน")
+
+    if prob is not None:
+        if prob > 0.65:
+            score += 2
+            reasons.append(f"ML ให้โอกาสขึ้นสูง {prob:.1%}")
+        elif prob < 0.35:
+            score -= 2
+            reasons.append(f"ML ให้โอกาสขึ้นต่ำ {prob:.1%}")
+        else:
+            reasons.append(f"ML ยังไม่ชัดเจน {prob:.1%}")
+
+    if score >= 2:
+        return Action.BUY, reasons
+    elif score <= -2:
+        return Action.SELL, reasons
+    return Action.HOLD, reasons
+
 def analyze_market(ticker_symbol: str) -> AnalysisResult:
     df = yf.download(ticker_symbol, period="6mo", progress=False)
     if df.empty: raise ValueError("ไม่พบข้อมูลหุ้น")
-    
+
     # จัดการชื่อ Column ให้เรียบง่าย
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
@@ -137,57 +188,40 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
     # คำนวณ Indicators
     df["rsi"] = ta_lib.momentum.RSIIndicator(df["close"], window=14).rsi()
     macd_obj = ta_lib.trend.MACD(df["close"])
+    df["macd"] = macd_obj.macd()
     df["macd_hist"] = macd_obj.macd_diff()
 
     lasted_rsi = df["rsi"].iloc[-1]
     lasted_close = df["close"].iloc[-1]
     lasted_hist = df["macd_hist"].iloc[-1]
-    prev_hist = df["macd_hist"].iloc[-2]
 
-    # Logic การตัดสินใจ
-    if lasted_rsi < 35 and lasted_hist >0:
-        action = Action.BUY
-    elif lasted_rsi > 65 and lasted_hist <0:
-        action = Action.SELL
-    else:
-        action = Action.HOLD
-    
+    close = df["close"]
+    volume = df["volume"]
+    prob = None
+
     if ML_MODEL:
-        close = df["close"]
-        volume =  df["volume"]
         feat_row = pd.DataFrame([{
             "rsi": float(df["rsi"].iloc[-1]),
-            "macd": float(df["macd_hist"].iloc[-1]),
+            "macd": float(df["macd"].iloc[-1]),
             "macd_hist": float(df["macd_hist"].iloc[-1]),
             "sma_20": float(close.rolling(20).mean().iloc[-1]),
             "sma_50": float(close.rolling(50).mean().iloc[-1]),
-            "bb_upper": float(close.rolling(20).mean().iloc[-1] +2 * close.rolling(20).std().iloc[-1]),
-            "bb_lower": float(close.rolling(20).mean().iloc[-1] -2 * close.rolling(20).std().iloc[-1]),
+            "bb_upper": float(close.rolling(20).mean().iloc[-1] + 2 * close.rolling(20).std().iloc[-1]),
+            "bb_lower": float(close.rolling(20).mean().iloc[-1] - 2 * close.rolling(20).std().iloc[-1]),
             "change_1d": float(close.pct_change(1).iloc[-1]),
             "change_5d": float(close.pct_change(5).iloc[-1]),
             "vol_ratio": float(volume.iloc[-1] / volume.rolling(20).mean().iloc[-1]),
-
-
         }])
+
+        if ML_FEATURES:
+            feat_row = feat_row[ML_FEATURES]
 
         prob = ML_MODEL.predict_proba(feat_row)[0][1]
         print(f"ความน่าจะเป็นที่ราคาจะขึ้น >1% ใน 5 วัน: {prob:.1%}")
-
-        if prob > 0.65:
-            action = Action.BUY
-        elif prob < 0.35:
-            action = Action.SELL
-        else:
-            action = Action.HOLD
-    else : 
+    else:
         print("⚠️  ไม่พบโมเดล ML กำลังใช้ Logic พื้นฐาน")
-        if lasted_rsi <35 and lasted_hist > 0:
-            action = Action.BUY
-        elif lasted_rsi > 65 and lasted_hist <0:
-            action = Action.SELL
-        else:
-            action = Action.HOLD
 
+    action, reasons = make_decision(lasted_rsi, lasted_hist, prob)
 
     return AnalysisResult(
         ticker=ticker_symbol,
@@ -196,7 +230,9 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         macd_hist=round(lasted_hist, 4),
         action=action,
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        df_history=df # ส่ง df ไปใช้วาดกราฟ
+        df_history=df, # ส่ง df ไปใช้วาดกราฟ
+        ml_probability=prob,
+        decision_reasons=reasons,
     )
 
 if __name__ == "__main__":
@@ -212,7 +248,7 @@ if __name__ == "__main__":
         "content": msg})
     print("✅ ส่ง Screener report แล้ว")
 
-    
+
 
     print("💱 กำลังวิเคราะห์อัตราแลกเปลี่ยน...")
     fx_results = analyze_all_fx()
@@ -243,21 +279,21 @@ if __name__ == "__main__":
                      "vol_ratio": float(result.df_history["volume"].iloc[-1]
                                      / result.df_history["volume"].rolling(20).mean().iloc[-1]),
                 }
-       
+
             )
-        
+
         # 2. วาดกราฟ
             print("🎨 สร้างกราฟ...")
             create_chart(result.df_history, ticker)
-        
+
         # 3. ให้ AI วิเคราะห์
             print(f"🤖 AI กำลังคิด...{ticker}")
             ai_insight = ask_claude(result)
-        
+
         # 4. ส่งแจ้งเตือน
             notify_discord(result, ai_insight)
             print(f"AI Insight: {ticker}")
-        
+
         except Exception as e:
             print(f"❌{ticker} Error: {str(e)}")
 
