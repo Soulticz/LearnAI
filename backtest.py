@@ -5,13 +5,31 @@ import pandas as pd
 import ta as ta_lib
 import matplotlib.pyplot as plt
 
+WATCHLIST = [
+    "SNDK", "AAPL", "MSFT", "NVDA", "GOOGL", "META",
+    "AMZN", "TSLA", "AMD", "INTC", "CRM",
+    "ORCL", "ADBE", "QCOM", "TXN", "AVGO",
+    # Finance
+    "JPM", "BAC", "GS", "MS", "V", "MA",
+    # Health
+    "JNJ", "PFE", "MRNA", "UNH", "ABBV",
+    # Energy
+    "XOM", "CVX", "OXY",
+    # Consumer
+    "MCD", "SBUX", "NKE", "DIS", "NFLX",
+    # ETF
+    "SPY", "QQQ", "IWM",
+    # Crypto-related
+    "COIN", "MSTR", "MARA",
+]
+
 FEATURES = [
     "rsi", "macd", "macd_hist", "sma_20", "sma_50",
     "bb_upper", "bb_lower", "change_1d", "change_5d", "vol_ratio"
 ]
 
-BUY_PROB_THRESHOLD = 0.65
-SELL_PROB_THRESHOLD = 0.35
+BUY_PROB_THRESHOLD = 0.55
+SELL_PROB_THRESHOLD = 0.45
 INITIAL_CAPITAL = 100000.0
 TRADE_FEE_RATE = 0.001  # 0.1% ต่อการซื้อ/ขาย 1 ครั้ง
 
@@ -56,22 +74,30 @@ def max_drawdown(equity: pd.Series) -> float:
     return float(dd.min() * 100)
 
 
-def run_backtest(ticker_symbol: str, period: str = "2y"):
-    model, model_features = load_model()
+def safe_filename(ticker: str) -> str:
+    return ticker.replace("^", "").replace("=", "_").replace("-", "_")
+
+
+def run_backtest(ticker_symbol: str, period: str = "2y", model=None, model_features=None, verbose: bool = True):
+    if model is None or model_features is None:
+        model, model_features = load_model()
     if model is None:
-        return
+        return None
 
     df = yf.download(ticker_symbol, period=period, interval="1d", progress=False)
 
     if df.empty:
         print(f"❌ ไม่พบข้อมูล {ticker_symbol}")
-        return
+        return None
 
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     df.columns = df.columns.str.lower()
 
     df = build_features(df).dropna().copy()
+    if df.empty:
+        print(f"❌ ข้อมูลไม่พอหลังคำนวณ indicators: {ticker_symbol}")
+        return None
 
     capital = INITIAL_CAPITAL
     position = 0.0
@@ -87,11 +113,9 @@ def run_backtest(ticker_symbol: str, period: str = "2y"):
         feat_row = feat_row[model_features]
         prob = float(model.predict_proba(feat_row)[0][1])
 
-        # Equity ณ วันนั้น เพื่อคำนวณ drawdown
         equity = capital if position == 0 else position * current_price
         equity_curve.append({"date": df.index[i], "equity": equity})
 
-        # BUY: ML มั่นใจว่าราคาขึ้น และยังไม่มี position
         if position == 0 and prob > BUY_PROB_THRESHOLD:
             buy_capital = capital * (1 - TRADE_FEE_RATE)
             position = buy_capital / current_price
@@ -104,9 +128,9 @@ def run_backtest(ticker_symbol: str, period: str = "2y"):
                 "prob": prob,
                 "capital": buy_capital,
             })
-            print(f"🛒 BUY  {df.index[i].date()} | Price: {current_price:,.2f} | ML: {prob:.1%}")
+            if verbose:
+                print(f"🛒 BUY  {ticker_symbol} {df.index[i].date()} | Price: {current_price:,.2f} | ML: {prob:.1%}")
 
-        # SELL: ML เริ่มไม่มั่นใจ หรือ RSI สูงมากและ MACD Hist อ่อน
         elif position > 0 and (
             prob < SELL_PROB_THRESHOLD
             or (row["rsi"] > 65 and row["macd_hist"] < 0)
@@ -124,14 +148,14 @@ def run_backtest(ticker_symbol: str, period: str = "2y"):
                 "capital": capital,
                 "return_pct": trade_return,
             })
-            print(
-                f"💰 SELL {df.index[i].date()} | Price: {current_price:,.2f} | "
-                f"ML: {prob:.1%} | Trade: {trade_return:+.2f}% | Capital: {capital:,.2f}"
-            )
+            if verbose:
+                print(
+                    f"💰 SELL {ticker_symbol} {df.index[i].date()} | Price: {current_price:,.2f} | "
+                    f"ML: {prob:.1%} | Trade: {trade_return:+.2f}% | Capital: {capital:,.2f}"
+                )
 
     final_value = capital if position == 0 else position * float(df["close"].iloc[-1])
     total_return = ((final_value - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100
-
     buy_hold_return = ((float(df["close"].iloc[-1]) - float(df["close"].iloc[0])) / float(df["close"].iloc[0])) * 100
 
     sell_trades = [t for t in trades if t["type"] == "SELL"]
@@ -141,27 +165,82 @@ def run_backtest(ticker_symbol: str, period: str = "2y"):
     equity_df = pd.DataFrame(equity_curve).set_index("date")
     mdd = max_drawdown(equity_df["equity"])
 
-    print(f"\n--- Backtest Result: {ticker_symbol} ({period}) ---")
-    print(f"Initial Capital : {INITIAL_CAPITAL:,.2f}")
-    print(f"Final Capital   : {final_value:,.2f}")
-    print(f"AI Return       : {total_return:+.2f}%")
-    print(f"Buy & Hold      : {buy_hold_return:+.2f}%")
-    print(f"Trades          : {len(sell_trades)} closed trades")
-    print(f"Win Rate        : {win_rate:.2f}%")
-    print(f"Max Drawdown    : {mdd:.2f}%")
+    result = {
+        "ticker": ticker_symbol,
+        "final_capital": final_value,
+        "ai_return_pct": total_return,
+        "buy_hold_pct": buy_hold_return,
+        "closed_trades": len(sell_trades),
+        "win_rate_pct": win_rate,
+        "max_drawdown_pct": mdd,
+    }
 
-    # วาด equity curve
-    plt.figure(figsize=(10, 5))
-    plt.plot(equity_df.index, equity_df["equity"], linewidth=2)
-    plt.title(f"{ticker_symbol} AI Backtest Equity Curve")
-    plt.xlabel("Date")
-    plt.ylabel("Equity")
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f"backtest_{ticker_symbol.replace('^', '').replace('=', '_')}.png")
-    plt.close()
-    print("📈 Saved equity curve image")
+    if verbose:
+        print(f"\n--- Backtest Result: {ticker_symbol} ({period}) ---")
+        print(f"Initial Capital : {INITIAL_CAPITAL:,.2f}")
+        print(f"Final Capital   : {final_value:,.2f}")
+        print(f"AI Return       : {total_return:+.2f}%")
+        print(f"Buy & Hold      : {buy_hold_return:+.2f}%")
+        print(f"Trades          : {len(sell_trades)} closed trades")
+        print(f"Win Rate        : {win_rate:.2f}%")
+        print(f"Max Drawdown    : {mdd:.2f}%")
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(equity_df.index, equity_df["equity"], linewidth=2)
+        plt.title(f"{ticker_symbol} AI Backtest Equity Curve")
+        plt.xlabel("Date")
+        plt.ylabel("Equity")
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(f"backtest_{safe_filename(ticker_symbol)}.png")
+        plt.close()
+        print("📈 Saved equity curve image")
+
+    return result
+
+
+def run_backtest_all(period: str = "2y"):
+    model, model_features = load_model()
+    if model is None:
+        return
+
+    results = []
+    for i, ticker in enumerate(WATCHLIST, start=1):
+        print(f"\n[{i}/{len(WATCHLIST)}] Backtesting {ticker}...")
+        try:
+            result = run_backtest(ticker, period=period, model=model, model_features=model_features, verbose=False)
+            if result:
+                results.append(result)
+                print(
+                    f"✅ {ticker}: AI {result['ai_return_pct']:+.2f}% | "
+                    f"B&H {result['buy_hold_pct']:+.2f}% | "
+                    f"Trades {result['closed_trades']} | "
+                    f"Win {result['win_rate_pct']:.1f}% | "
+                    f"DD {result['max_drawdown_pct']:.2f}%"
+                )
+        except Exception as e:
+            print(f"❌ {ticker}: {e}")
+
+    if not results:
+        print("❌ ไม่มีผล backtest")
+        return
+
+    summary = pd.DataFrame(results)
+    summary["alpha_vs_hold_pct"] = summary["ai_return_pct"] - summary["buy_hold_pct"]
+    summary = summary.sort_values("ai_return_pct", ascending=False)
+    summary.to_csv("backtest_summary.csv", index=False, encoding="utf-8-sig")
+
+    print("\n========== Backtest Summary ==========")
+    print(summary.to_string(index=False, formatters={
+        "final_capital": "{:,.2f}".format,
+        "ai_return_pct": "{:+.2f}".format,
+        "buy_hold_pct": "{:+.2f}".format,
+        "win_rate_pct": "{:.2f}".format,
+        "max_drawdown_pct": "{:.2f}".format,
+        "alpha_vs_hold_pct": "{:+.2f}".format,
+    }))
+    print("\n💾 Saved summary to backtest_summary.csv")
 
 
 if __name__ == "__main__":
-    run_backtest("^GSPC", period="2y")
+    run_backtest_all(period="2y")
