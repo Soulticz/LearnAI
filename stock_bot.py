@@ -13,6 +13,7 @@ from screener import run_screener, format_screener_message
 import os
 import anthropic
 import matplotlib.pyplot as plt
+from paper_trading import apply_signal
 from signal_log import save_signal, evaluate_old_signals, retrain_if_needed
 try:
     from strategy_selector import get_strategy_mode
@@ -312,6 +313,14 @@ if __name__ == "__main__":
                 }
 
             )
+            excuted, msg, portfolio = apply_signal(
+                ticker= result.ticker,
+                action_value=result.action.value,
+                price=result.current_price,
+                strategy_mode=result.strategy_mode,
+                strategy_reason=result.strategy_reason
+            )
+            print(f" paper trading {msg}")
 
         # 2. วาดกราฟ
             print("🎨 สร้างกราฟ...")
