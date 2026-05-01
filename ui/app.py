@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import sys
 
 import pandas as pd
 import streamlit as st
@@ -7,15 +8,16 @@ import plotly.express as px
 import yfinance as yf
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
+
+from soul_assistant import ask_soul_assistant
+
 BACKTEST_FILE = ROOT / "backtest_summary.csv"
 STRATEGY_FILE = ROOT / "strategy_modes.csv"
 PORTFOLIO_FILE = ROOT / "paper_portfolio.json"
 
-st.set_page_config(
-    page_title="SoulQuant Dashboard",
-    page_icon="📈",
-    layout="wide",
-)
+st.set_page_config(page_title="SoulQuant Dashboard", page_icon="📈", layout="wide")
 
 MODE_COLORS = {
     "HYBRID": "#16a34a",
@@ -24,44 +26,23 @@ MODE_COLORS = {
     "AVOID": "#dc2626",
     "UNKNOWN": "#6b7280",
 }
-
 DEFAULT_LIVE_TICKERS = ["AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "TSLA", "AMD", "SPY", "QQQ"]
 
 st.markdown(
     """
     <style>
-    .sq-card {
-        padding: 18px;
-        border-radius: 16px;
-        border: 1px solid rgba(255,255,255,0.12);
-        background: rgba(255,255,255,0.04);
-        min-height: 132px;
-    }
-    .sq-mode {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 999px;
-        color: white;
-        font-weight: 700;
-        font-size: 0.85rem;
-        margin-bottom: 8px;
-    }
-    .sq-title {
-        font-size: 1.35rem;
-        font-weight: 800;
-        margin-bottom: 4px;
-    }
-    .sq-subtle {
-        color: rgba(255,255,255,0.70);
-        font-size: 0.92rem;
-    }
+    .sq-card {padding:18px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);min-height:132px;}
+    .sq-mode {display:inline-block;padding:4px 10px;border-radius:999px;color:white;font-weight:700;font-size:.85rem;margin-bottom:8px;}
+    .sq-title {font-size:1.35rem;font-weight:800;margin-bottom:4px;}
+    .sq-subtle {color:rgba(255,255,255,.70);font-size:.92rem;}
+    .assistant-card {padding:18px;border-radius:18px;background:linear-gradient(135deg, rgba(255,182,193,.12), rgba(147,197,253,.10));border:1px solid rgba(255,255,255,.12);}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 st.title("📈 SoulQuant Dashboard")
-st.caption("AI Stock Analyst • Backtest • Strategy Selector • Paper Portfolio • Live Market")
+st.caption("AI Stock Analyst • Backtest • Strategy Selector • Paper Portfolio • Live Market • AI Assistant")
 
 
 def load_csv(path: Path) -> pd.DataFrame | None:
@@ -142,7 +123,6 @@ with st.sidebar:
         fetch_live_prices.clear()
         st.rerun()
 
-# Top Action Panel
 st.subheader("⚡ Top Action Panel")
 if strategy_df is None:
     st.warning("ยังไม่พบ strategy_modes.csv ให้รัน python strategy_selector.py ก่อน")
@@ -155,52 +135,29 @@ else:
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.markdown("### 🟢 Best HYBRID")
-        if hybrid_top.empty:
-            st.caption("ยังไม่มี")
-        else:
-            render_pick_card(hybrid_top.iloc[0])
+        st.caption("ยังไม่มี") if hybrid_top.empty else render_pick_card(hybrid_top.iloc[0])
     with c2:
         st.markdown("### 🔵 Best HOLD")
-        if hold_top.empty:
-            st.caption("ยังไม่มี")
-        else:
-            render_pick_card(hold_top.iloc[0])
+        st.caption("ยังไม่มี") if hold_top.empty else render_pick_card(hold_top.iloc[0])
     with c3:
         st.markdown("### 🟡 WATCH")
-        if watch_top.empty:
-            st.caption("ยังไม่มี")
-        else:
-            render_pick_card(watch_top.iloc[0])
+        st.caption("ยังไม่มี") if watch_top.empty else render_pick_card(watch_top.iloc[0])
     with c4:
         st.markdown("### 🔴 AVOID")
-        if avoid_top.empty:
-            st.caption("ยังไม่มี")
-        else:
-            render_pick_card(avoid_top.iloc[0])
+        st.caption("ยังไม่มี") if avoid_top.empty else render_pick_card(avoid_top.iloc[0])
 
     with st.expander("ดู Top Picks ทั้งหมด"):
-        col1, col2, col3, col4 = st.columns(4)
-        for col, title, data in [
-            (col1, "🟢 HYBRID", hybrid_top),
-            (col2, "🔵 HOLD", hold_top),
-            (col3, "🟡 WATCH", watch_top),
-            (col4, "🔴 AVOID", avoid_top),
-        ]:
-            with col:
-                st.markdown(f"#### {title}")
-                if data.empty:
-                    st.caption("ไม่มีข้อมูล")
-                else:
-                    st.dataframe(data[["ticker", "mode", "hybrid_return_pct", "buy_hold_pct", "hybrid_alpha_vs_hold_pct"]], use_container_width=True)
+        for title, data in [("🟢 HYBRID", hybrid_top), ("🔵 HOLD", hold_top), ("🟡 WATCH", watch_top), ("🔴 AVOID", avoid_top)]:
+            st.markdown(f"#### {title}")
+            if data.empty:
+                st.caption("ไม่มีข้อมูล")
+            else:
+                st.dataframe(data[["ticker", "mode", "hybrid_return_pct", "buy_hold_pct", "hybrid_alpha_vs_hold_pct"]], use_container_width=True)
 
 st.divider()
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📒 Portfolio",
-    "🧭 Strategy Modes",
-    "📊 Backtest",
-    "🔎 Stock Detail",
-    "📡 Live Market",
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📒 Portfolio", "🧭 Strategy Modes", "📊 Backtest", "🔎 Stock Detail", "📡 Live Market", "💬 AI Assistant"
 ])
 
 with tab1:
@@ -212,7 +169,6 @@ with tab1:
         positions = portfolio.get("positions", {})
         total_value = cash
         rows = []
-
         for ticker, pos in positions.items():
             shares = float(pos.get("shares", 0))
             avg_price = float(pos.get("avg_price", 0))
@@ -220,28 +176,17 @@ with tab1:
             market_value = shares * last_price
             pnl_pct = ((last_price - avg_price) / avg_price * 100) if avg_price else 0
             total_value += market_value
-            rows.append({
-                "ticker": ticker,
-                "shares": shares,
-                "avg_price": avg_price,
-                "last_price": last_price,
-                "market_value": market_value,
-                "pnl_pct": pnl_pct,
-            })
-
+            rows.append({"ticker": ticker, "shares": shares, "avg_price": avg_price, "last_price": last_price, "market_value": market_value, "pnl_pct": pnl_pct})
         c1, c2, c3 = st.columns(3)
         c1.metric("Cash", f"{cash:,.2f}")
         c2.metric("Positions", len(positions))
         c3.metric("Total Value", f"{total_value:,.2f}", f"{((total_value - 100000) / 100000) * 100:+.2f}%")
-
         if rows:
             pos_df = pd.DataFrame(rows)
             st.dataframe(pos_df, use_container_width=True)
-            fig = px.pie(pos_df, values="market_value", names="ticker", title="Portfolio Allocation")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(px.pie(pos_df, values="market_value", names="ticker", title="Portfolio Allocation"), use_container_width=True)
         else:
             st.info("ยังไม่มี position ใน paper portfolio")
-
         trades = portfolio.get("trades", [])
         if trades:
             st.subheader("Trade History")
@@ -258,29 +203,10 @@ with tab2:
         with c1:
             st.dataframe(mode_counts, use_container_width=True)
         with c2:
-            fig = px.bar(
-                mode_counts,
-                x="mode",
-                y="count",
-                title="Strategy Mode Count",
-                color="mode",
-                color_discrete_map=MODE_COLORS,
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        mode_filter = st.multiselect(
-            "Filter mode",
-            options=sorted(strategy_df["mode"].unique()),
-            default=sorted(strategy_df["mode"].unique()),
-        )
+            st.plotly_chart(px.bar(mode_counts, x="mode", y="count", title="Strategy Mode Count", color="mode", color_discrete_map=MODE_COLORS), use_container_width=True)
+        mode_filter = st.multiselect("Filter mode", options=sorted(strategy_df["mode"].unique()), default=sorted(strategy_df["mode"].unique()))
         filtered = strategy_df[strategy_df["mode"].isin(mode_filter)].copy()
-        st.dataframe(
-            filtered.style.apply(
-                lambda row: [f"background-color: {MODE_COLORS.get(row['mode'], '#6b7280')}33"] * len(row),
-                axis=1,
-            ),
-            use_container_width=True,
-        )
+        st.dataframe(filtered, use_container_width=True)
 
 with tab3:
     st.subheader("📊 Backtest Summary")
@@ -291,16 +217,8 @@ with tab3:
         c1.metric("Avg AI Return", f"{backtest_df['ai_return_pct'].mean():+.2f}%")
         c2.metric("Avg Hybrid Return", f"{backtest_df['hybrid_return_pct'].mean():+.2f}%")
         c3.metric("Avg Buy & Hold", f"{backtest_df['buy_hold_pct'].mean():+.2f}%")
-
         chart_df = backtest_df.sort_values("hybrid_return_pct", ascending=False).head(15)
-        fig = px.bar(
-            chart_df,
-            x="ticker",
-            y=["ai_return_pct", "hybrid_return_pct", "buy_hold_pct"],
-            barmode="group",
-            title="Top 15 Return Comparison",
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(px.bar(chart_df, x="ticker", y=["ai_return_pct", "hybrid_return_pct", "buy_hold_pct"], barmode="group", title="Top 15 Return Comparison"), use_container_width=True)
         st.dataframe(backtest_df, use_container_width=True)
 
 with tab4:
@@ -310,66 +228,82 @@ with tab4:
     else:
         ticker = st.selectbox("เลือกหุ้น", backtest_df["ticker"].tolist())
         row = backtest_df[backtest_df["ticker"] == ticker].iloc[0]
-
         strategy_row = None
         if strategy_df is not None and ticker in strategy_df["ticker"].values:
             strategy_row = strategy_df[strategy_df["ticker"] == ticker].iloc[0]
-
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("AI Return", f"{row['ai_return_pct']:+.2f}%")
         c2.metric("Hybrid Return", f"{row['hybrid_return_pct']:+.2f}%")
         c3.metric("Buy & Hold", f"{row['buy_hold_pct']:+.2f}%")
         c4.metric("Hybrid DD", f"{row['hybrid_max_drawdown_pct']:.2f}%")
-
         if strategy_row is not None:
             st.markdown(f"{mode_badge(strategy_row['mode'])}", unsafe_allow_html=True)
             st.info(f"{strategy_row['reason']}")
-
-        compare_df = pd.DataFrame({
-            "strategy": ["AI", "Hybrid", "Buy & Hold"],
-            "return_pct": [row["ai_return_pct"], row["hybrid_return_pct"], row["buy_hold_pct"]],
-        })
-        fig = px.bar(compare_df, x="strategy", y="return_pct", title=f"{ticker} Return Comparison")
-        st.plotly_chart(fig, use_container_width=True)
+        compare_df = pd.DataFrame({"strategy": ["AI", "Hybrid", "Buy & Hold"], "return_pct": [row["ai_return_pct"], row["hybrid_return_pct"], row["buy_hold_pct"]]})
+        st.plotly_chart(px.bar(compare_df, x="strategy", y="return_pct", title=f"{ticker} Return Comparison"), use_container_width=True)
 
 with tab5:
     st.subheader("📡 Live Market")
     st.caption("ใช้ yfinance ฟรี ข้อมูลอาจ delay และไม่ใช่ real-time ระดับวินาที")
-
-    if strategy_df is not None:
-        default_options = strategy_df["ticker"].tolist()
-    else:
-        default_options = DEFAULT_LIVE_TICKERS
-
-    selected_tickers = st.multiselect(
-        "เลือก ticker",
-        options=default_options,
-        default=[t for t in DEFAULT_LIVE_TICKERS if t in default_options][:8] or default_options[:8],
-    )
-
+    default_options = strategy_df["ticker"].tolist() if strategy_df is not None else DEFAULT_LIVE_TICKERS
+    selected_tickers = st.multiselect("เลือก ticker", options=default_options, default=[t for t in DEFAULT_LIVE_TICKERS if t in default_options][:8] or default_options[:8])
     if selected_tickers:
         live_df = fetch_live_prices(selected_tickers)
         if strategy_df is not None and not live_df.empty:
             live_df = live_df.merge(strategy_df[["ticker", "mode", "reason"]], on="ticker", how="left")
             live_df["mode"] = live_df["mode"].fillna("UNKNOWN")
-
         if not live_df.empty:
             c1, c2, c3 = st.columns(3)
             c1.metric("Tickers", len(live_df))
             c2.metric("Up Today", int((live_df["change_1d_pct"] > 0).sum()))
             c3.metric("Down Today", int((live_df["change_1d_pct"] < 0).sum()))
-
-            fig = px.bar(
-                live_df.dropna(subset=["change_1d_pct"]),
-                x="ticker",
-                y="change_1d_pct",
-                color="mode" if "mode" in live_df.columns else None,
-                color_discrete_map=MODE_COLORS,
-                title="1D Change %",
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(px.bar(live_df.dropna(subset=["change_1d_pct"]), x="ticker", y="change_1d_pct", color="mode" if "mode" in live_df.columns else None, color_discrete_map=MODE_COLORS, title="1D Change %"), use_container_width=True)
             st.dataframe(live_df, use_container_width=True)
         else:
             st.warning("ดึงข้อมูลราคาไม่สำเร็จ")
     else:
         st.info("เลือก ticker ก่อน")
+
+with tab6:
+    st.subheader("💬 SoulQuant AI Assistant")
+    st.markdown(
+        """
+        <div class="assistant-card">
+            เลขาส่วนตัวของคุณ Soul พร้อมช่วยอ่านข้อมูล Backtest, Strategy Mode และ Paper Portfolio ค่ะ 💕<br>
+            ตัวอย่าง: <b>วิเคราะห์ NVDA ให้หน่อย</b>, <b>พอร์ตเราตอนนี้โอเคไหม</b>, <b>ตัวไหนน่าสนใจสุด</b>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if "assistant_messages" not in st.session_state:
+        st.session_state.assistant_messages = [
+            {"role": "assistant", "content": "สวัสดีค่ะคุณ Soul 💕 เลขาพร้อมช่วยวิเคราะห์ข้อมูล SoulQuant แล้วค่ะ"}
+        ]
+
+    for message in st.session_state.assistant_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    prompt = st.chat_input("ถามเลขาได้เลยค่ะ เช่น วิเคราะห์ META ให้หน่อย")
+    if prompt:
+        st.session_state.assistant_messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        chat_history = [
+            {"role": m["role"], "content": m["content"]}
+            for m in st.session_state.assistant_messages
+            if m["role"] in ["user", "assistant"]
+        ]
+        with st.chat_message("assistant"):
+            with st.spinner("เลขากำลังอ่านข้อมูลให้นะคะ..."):
+                answer = ask_soul_assistant(prompt, chat_history=chat_history)
+                st.markdown(answer)
+        st.session_state.assistant_messages.append({"role": "assistant", "content": answer})
+
+    if st.button("🧹 Clear chat"):
+        st.session_state.assistant_messages = [
+            {"role": "assistant", "content": "เคลียร์แชตแล้วค่ะคุณ Soul 💕 ถามใหม่ได้เลยนะคะ"}
+        ]
+        st.rerun()
