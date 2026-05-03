@@ -3180,8 +3180,9 @@
       "vol_ratio": 0.9401853445077895
     },
     "timestamp": "2026-04-28T06:23:55.101771",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": false,
+    "change_pct": 0.78
   },
   {
     "ticker": "GC=F",
@@ -3214,8 +3215,9 @@
       "vol_ratio": 0.8811477517277553
     },
     "timestamp": "2026-04-28T06:24:10.079839",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": 2.02
   },
   {
     "ticker": "NVDA",
@@ -3231,8 +3233,9 @@
       "vol_ratio": 1.2330450509246367
     },
     "timestamp": "2026-04-28T06:24:11.105612",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": -8.38
   },
   {
     "ticker": "^GSPC",
