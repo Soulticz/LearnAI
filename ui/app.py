@@ -21,6 +21,7 @@ st.set_page_config(page_title="SoulQuant Dashboard", page_icon="📈", layout="w
 
 MODE_COLORS = {
     "ACTIVE_HYBRID": "#16a34a",
+    "HYBRID": "#16a34a",
     "HOLD": "#2563eb",
     "WATCH": "#ca8a04",
     "AVOID": "#dc2626",
@@ -127,7 +128,7 @@ st.subheader("⚡ Top Action Panel")
 if strategy_df is None:
     st.warning("ยังไม่พบ strategy_modes.csv ให้รัน python strategy_selector.py ก่อน")
 else:
-    hybrid_top = strategy_df[strategy_df["mode"] == "HYBRID"].sort_values("hybrid_alpha_vs_hold_pct", ascending=False).head(3)
+    hybrid_top = strategy_df[strategy_df["mode"].isin(["HYBRID", "ACTIVE_HYBRID"])].sort_values("hybrid_alpha_vs_hold_pct", ascending=False).head(3)
     hold_top = strategy_df[strategy_df["mode"] == "HOLD"].sort_values("buy_hold_pct", ascending=False).head(3)
     watch_top = strategy_df[strategy_df["mode"] == "WATCH"].sort_values("hybrid_alpha_vs_hold_pct", ascending=False).head(3)
     avoid_top = strategy_df[strategy_df["mode"] == "AVOID"].sort_values("hybrid_max_drawdown_pct", ascending=True).head(3)
@@ -173,10 +174,25 @@ with tab1:
             shares = float(pos.get("shares", 0))
             avg_price = float(pos.get("avg_price", 0))
             last_price = float(pos.get("last_price", avg_price))
+            stop_loss = float(pos.get("stop_loss", avg_price * 0.95 if avg_price else 0))
+            take_profit_5 = avg_price * 1.05 if avg_price else 0
+            take_profit_10 = avg_price * 1.10 if avg_price else 0
+            half_done = bool(pos.get("take_profit_half_done", False))
             market_value = shares * last_price
             pnl_pct = ((last_price - avg_price) / avg_price * 100) if avg_price else 0
             total_value += market_value
-            rows.append({"ticker": ticker, "shares": shares, "avg_price": avg_price, "last_price": last_price, "market_value": market_value, "pnl_pct": pnl_pct})
+            rows.append({
+                "ticker": ticker,
+                "shares": shares,
+                "avg_price": avg_price,
+                "last_price": last_price,
+                "stop_loss": stop_loss,
+                "take_profit_5": take_profit_5,
+                "take_profit_10": take_profit_10,
+                "half_taken": half_done,
+                "market_value": market_value,
+                "pnl_pct": pnl_pct,
+            })
         c1, c2, c3 = st.columns(3)
         c1.metric("Cash", f"{cash:,.2f}")
         c2.metric("Positions", len(positions))
@@ -184,6 +200,7 @@ with tab1:
         if rows:
             pos_df = pd.DataFrame(rows)
             st.dataframe(pos_df, use_container_width=True)
+            st.caption("Stop Loss = -5% จากราคาเฉลี่ย | Take Profit 5% = ขายครึ่ง | Take Profit 10% = ขายหมด")
             st.plotly_chart(px.pie(pos_df, values="market_value", names="ticker", title="Portfolio Allocation"), use_container_width=True)
         else:
             st.info("ยังไม่มี position ใน paper portfolio")
