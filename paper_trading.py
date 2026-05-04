@@ -1,3 +1,4 @@
+from ui.app import avg_price
 import json
 import os
 from dataclasses import dataclass, asdict
@@ -11,6 +12,8 @@ INITIAL_CASH = 100000.0
 TRADE_FEE_RATE = 0.001
 MAX_POSITION_RATIO = 0.25  # ต่อ 1 ตัว ใช้เงินไม่เกิน 25% ของพอร์ต
 STOP_LOSS_PCT = 0.05       # cut loss 5% จากราคาเฉลี่ย
+Take_Profit_PCT = 0.05     # take profit 5% จากราคาเฉลี่ย
+Take_Profit_Full = 0.10    # take profit 10% จากราคาเฉลี่ย
 
 
 @dataclass
@@ -210,7 +213,40 @@ def apply_signal(ticker: str, action_value: str, price: float, strategy_mode: st
 
     save_portfolio(portfolio)
     return executed, message, portfolio
+    # ===== TAKE PROFIT =====
+    position = portfolio.get("positions", {}.get(ticker))
+    if position:
+        avg_price = float(position.get(avg_price, 0))
+        if avg_price > 0:
+            profit_pct = (price - avg_price) / avg_price
+            if profit_pct >= Take_Profit_Full:
+                executed, message = paper_sell(portfolio,ticker,price,reason=f"Take_Profit_Full {profit_pct*100:.2f}%")
+                save_portfolio(portfolio)
+                return executed, message, portfolio
+            elif profit_pct >= Take_Profit_PCT:
+                shares = float(position.get("shares", 0)) /2
 
+                gross = shares * price
+                net = gross *(1 - TRADE_FEE_RATE)
+                
+                portfolio["cash"] += net
+                position["shares"] -= shares
+
+                if position["shares"] <= 0:
+                    del portfolio["positions"][ticker]
+
+                trade = PaperTrade(
+                    timestamp =datetime.now(.strftime("%Y-%m-%d %H:%M:%S")),
+                    ticker=ticker,
+                    action="SELL_HALF",
+                    price=price,
+                    shares=shares,
+                    cash_after=portfolio["cash"],
+                    reason=f"Take Profit Half {profit_pct*100:.2f}%"
+                )
+                portfolio["trades"].append(asdict(trade))
+                return True, f"SELL_HALF {ticker} at {price:.2f}"
+            
 
 def format_portfolio_summary(portfolio: dict) -> str:
     positions = portfolio.get("positions", {})
