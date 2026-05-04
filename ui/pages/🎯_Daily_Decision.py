@@ -1,4 +1,3 @@
-from scipy.stats import alpha
 from pathlib import Path
 import pandas as pd
 import streamlit as st
@@ -37,7 +36,7 @@ if not hybrid_df.empty:
     st.subheader("TOP PICKS:")
     st.success(f"({top['ticker']}) 🟢 เข้าซื้อ")
 
-    st.write(f"Aplha: {top['hybrid_alpha_vs_hold_pct']:.2f}%")
+    st.write(f"Alpha: {top['hybrid_alpha_vs_hold_pct']:.2f}%")
     st.write(f"hybrid return: {top['hybrid_return_pct']:.2f}%")
     st.write(f"Reason: {top['reason']}")
 
