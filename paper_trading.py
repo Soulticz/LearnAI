@@ -10,6 +10,7 @@ STRATEGY_FILE = "strategy_modes.csv"
 INITIAL_CASH = 100000.0
 TRADE_FEE_RATE = 0.001
 MAX_POSITION_RATIO = 0.25  # ต่อ 1 ตัว ใช้เงินไม่เกิน 25% ของพอร์ต
+STOP_LOSS_PCT = 0.05       # cut loss 5% จากราคาเฉลี่ย
 
 
 @dataclass
@@ -101,6 +102,7 @@ def paper_buy(portfolio: dict, ticker: str, price: float, reason: str):
         "shares": new_shares,
         "avg_price": new_avg,
         "last_price": price,
+        "stop_loss": new_avg * (1 - STOP_LOSS_PCT),
     }
 
     trade = PaperTrade(
@@ -113,7 +115,7 @@ def paper_buy(portfolio: dict, ticker: str, price: float, reason: str):
         reason=reason,
     )
     portfolio["trades"].append(asdict(trade))
-    return True, f"BUY {ticker} {shares:.4f} shares at {price:.2f}"
+    return True, f"BUY {ticker} {shares:.4f} shares at {price:.2f} | Stop Loss {new_avg * (1 - STOP_LOSS_PCT):.2f}"
 
 
 def paper_sell(portfolio: dict, ticker: str, price: float, reason: str):
@@ -154,6 +156,7 @@ def apply_signal(ticker: str, action_value: str, price: float, strategy_mode: st
     """ใช้ signal จาก stock_bot มาจำลองซื้อขาย
 
     กติกาแรก:
+    - Stop Loss: ถ้าราคาหลุด stop loss ให้ขายก่อน logic อื่น
     - HYBRID: ทำตาม BUY/SELL จาก AI
     - WATCH: ยังไม่ซื้อ แต่ถ้ามี position แล้วเจอ SELL ให้ขายลดเสี่ยง
     - HOLD: ไม่ขายตามสัญญาณสั้น ๆ และไม่เปิด position ใหม่จาก paper bot
@@ -169,6 +172,20 @@ def apply_signal(ticker: str, action_value: str, price: float, strategy_mode: st
     executed = False
     message = "No action"
     reason = f"{strategy_mode}: {strategy_reason} | Signal: {action_value}"
+
+    # Stop loss ต้องมาก่อนทุก logic
+    position = portfolio.get("positions", {}).get(ticker)
+    if position:
+        stop_loss = float(position.get("stop_loss", 0.0))
+        if stop_loss > 0 and price <= stop_loss:
+            executed, message = paper_sell(
+                portfolio,
+                ticker,
+                price,
+                reason=f"Stop Loss Triggered: price {price:.2f} <= stop {stop_loss:.2f}",
+            )
+            save_portfolio(portfolio)
+            return executed, message, portfolio
 
     is_buy_signal = "ซื้อ" in action_text or "BUY" in action_text.upper()
     is_sell_signal = "ขาย" in action_text or "SELL" in action_text.upper()
@@ -207,8 +224,12 @@ def format_portfolio_summary(portfolio: dict) -> str:
         shares = float(pos.get("shares", 0))
         avg_price = float(pos.get("avg_price", 0))
         last_price = float(pos.get("last_price", avg_price))
+        stop_loss = float(pos.get("stop_loss", 0))
         pnl = ((last_price - avg_price) / avg_price * 100) if avg_price else 0
-        lines.append(f"- {ticker}: {shares:.4f} @ {avg_price:.2f} | Last {last_price:.2f} | P/L {pnl:+.2f}%")
+        lines.append(
+            f"- {ticker}: {shares:.4f} @ {avg_price:.2f} | Last {last_price:.2f} | "
+            f"Stop {stop_loss:.2f} | P/L {pnl:+.2f}%"
+        )
 
     return "\n".join(lines)
 
