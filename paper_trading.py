@@ -1,4 +1,3 @@
-from ui.app import avg_price
 import json
 import os
 from dataclasses import dataclass, asdict
@@ -12,8 +11,8 @@ INITIAL_CASH = 100000.0
 TRADE_FEE_RATE = 0.001
 MAX_POSITION_RATIO = 0.25  # ต่อ 1 ตัว ใช้เงินไม่เกิน 25% ของพอร์ต
 STOP_LOSS_PCT = 0.05       # cut loss 5% จากราคาเฉลี่ย
-Take_Profit_PCT = 0.05     # take profit 5% จากราคาเฉลี่ย
-Take_Profit_Full = 0.10    # take profit 10% จากราคาเฉลี่ย
+TAKE_PROFIT_PCT = 0.05     # กำไร 5% ขายครึ่ง
+TAKE_PROFIT_FULL = 0.10    # กำไร 10% ขายหมด
 
 
 @dataclass
@@ -106,6 +105,7 @@ def paper_buy(portfolio: dict, ticker: str, price: float, reason: str):
         "avg_price": new_avg,
         "last_price": price,
         "stop_loss": new_avg * (1 - STOP_LOSS_PCT),
+        "take_profit_half_done": bool(pos.get("take_profit_half_done", False)),
     }
 
     trade = PaperTrade(
@@ -149,6 +149,40 @@ def paper_sell(portfolio: dict, ticker: str, price: float, reason: str):
     return True, f"SELL {ticker} {shares:.4f} shares at {price:.2f}"
 
 
+def paper_sell_half(portfolio: dict, ticker: str, price: float, reason: str):
+    ticker = ticker.upper()
+    pos = portfolio.get("positions", {}).get(ticker)
+    if not pos:
+        return False, "ไม่มี position ให้ขายครึ่ง"
+
+    current_shares = float(pos.get("shares", 0.0))
+    shares_to_sell = current_shares / 2
+    if shares_to_sell <= 0:
+        return False, "จำนวนหุ้นเป็น 0"
+
+    gross = shares_to_sell * price
+    net = gross * (1 - TRADE_FEE_RATE)
+    portfolio["cash"] = float(portfolio.get("cash", 0.0)) + net
+    pos["shares"] = current_shares - shares_to_sell
+    pos["last_price"] = price
+    pos["take_profit_half_done"] = True
+
+    if pos["shares"] <= 0:
+        del portfolio["positions"][ticker]
+
+    trade = PaperTrade(
+        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        ticker=ticker,
+        action="SELL_HALF",
+        price=price,
+        shares=shares_to_sell,
+        cash_after=portfolio["cash"],
+        reason=reason,
+    )
+    portfolio["trades"].append(asdict(trade))
+    return True, f"SELL HALF {ticker} {shares_to_sell:.4f} shares at {price:.2f}"
+
+
 def update_last_price(portfolio: dict, ticker: str, price: float):
     ticker = ticker.upper()
     if ticker in portfolio.get("positions", {}):
@@ -160,6 +194,7 @@ def apply_signal(ticker: str, action_value: str, price: float, strategy_mode: st
 
     กติกาแรก:
     - Stop Loss: ถ้าราคาหลุด stop loss ให้ขายก่อน logic อื่น
+    - Take Profit: +10% ขายหมด, +5% ขายครึ่งหนึ่งครั้ง
     - HYBRID: ทำตาม BUY/SELL จาก AI
     - WATCH: ยังไม่ซื้อ แต่ถ้ามี position แล้วเจอ SELL ให้ขายลดเสี่ยง
     - HOLD: ไม่ขายตามสัญญาณสั้น ๆ และไม่เปิด position ใหม่จาก paper bot
@@ -176,8 +211,9 @@ def apply_signal(ticker: str, action_value: str, price: float, strategy_mode: st
     message = "No action"
     reason = f"{strategy_mode}: {strategy_reason} | Signal: {action_value}"
 
-    # Stop loss ต้องมาก่อนทุก logic
     position = portfolio.get("positions", {}).get(ticker)
+
+    # Stop loss ต้องมาก่อนทุก logic
     if position:
         stop_loss = float(position.get("stop_loss", 0.0))
         if stop_loss > 0 and price <= stop_loss:
@@ -189,6 +225,33 @@ def apply_signal(ticker: str, action_value: str, price: float, strategy_mode: st
             )
             save_portfolio(portfolio)
             return executed, message, portfolio
+
+    # Take profit มาก่อน signal ปกติ เพื่อ lock กำไร
+    position = portfolio.get("positions", {}).get(ticker)
+    if position:
+        avg_price = float(position.get("avg_price", 0.0))
+        if avg_price > 0:
+            profit_pct = (price - avg_price) / avg_price
+
+            if profit_pct >= TAKE_PROFIT_FULL:
+                executed, message = paper_sell(
+                    portfolio,
+                    ticker,
+                    price,
+                    reason=f"Take Profit FULL: +{profit_pct * 100:.2f}%",
+                )
+                save_portfolio(portfolio)
+                return executed, message, portfolio
+
+            if profit_pct >= TAKE_PROFIT_PCT and not bool(position.get("take_profit_half_done", False)):
+                executed, message = paper_sell_half(
+                    portfolio,
+                    ticker,
+                    price,
+                    reason=f"Take Profit HALF: +{profit_pct * 100:.2f}%",
+                )
+                save_portfolio(portfolio)
+                return executed, message, portfolio
 
     is_buy_signal = "ซื้อ" in action_text or "BUY" in action_text.upper()
     is_sell_signal = "ขาย" in action_text or "SELL" in action_text.upper()
@@ -213,40 +276,7 @@ def apply_signal(ticker: str, action_value: str, price: float, strategy_mode: st
 
     save_portfolio(portfolio)
     return executed, message, portfolio
-    # ===== TAKE PROFIT =====
-    position = portfolio.get("positions", {}.get(ticker))
-    if position:
-        avg_price = float(position.get(avg_price, 0))
-        if avg_price > 0:
-            profit_pct = (price - avg_price) / avg_price
-            if profit_pct >= Take_Profit_Full:
-                executed, message = paper_sell(portfolio,ticker,price,reason=f"Take_Profit_Full {profit_pct*100:.2f}%")
-                save_portfolio(portfolio)
-                return executed, message, portfolio
-            elif profit_pct >= Take_Profit_PCT:
-                shares = float(position.get("shares", 0)) /2
 
-                gross = shares * price
-                net = gross *(1 - TRADE_FEE_RATE)
-                
-                portfolio["cash"] += net
-                position["shares"] -= shares
-
-                if position["shares"] <= 0:
-                    del portfolio["positions"][ticker]
-
-                trade = PaperTrade(
-                    timestamp =datetime.now(.strftime("%Y-%m-%d %H:%M:%S")),
-                    ticker=ticker,
-                    action="SELL_HALF",
-                    price=price,
-                    shares=shares,
-                    cash_after=portfolio["cash"],
-                    reason=f"Take Profit Half {profit_pct*100:.2f}%"
-                )
-                portfolio["trades"].append(asdict(trade))
-                return True, f"SELL_HALF {ticker} at {price:.2f}"
-            
 
 def format_portfolio_summary(portfolio: dict) -> str:
     positions = portfolio.get("positions", {})
