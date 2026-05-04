@@ -20,7 +20,7 @@ PORTFOLIO_FILE = ROOT / "paper_portfolio.json"
 st.set_page_config(page_title="SoulQuant Dashboard", page_icon="📈", layout="wide")
 
 MODE_COLORS = {
-    "HYBRID": "#16a34a",
+    "ACTIVE_HYBRID": "#16a34a",
     "HOLD": "#2563eb",
     "WATCH": "#ca8a04",
     "AVOID": "#dc2626",
