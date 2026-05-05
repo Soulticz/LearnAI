@@ -4621,8 +4621,9 @@
       "vol_ratio": 1.0253289124100402
     },
     "timestamp": "2026-04-30T09:57:24.630140",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": false,
+    "change_pct": 0.91
   },
   {
     "ticker": "GC=F",
@@ -4638,8 +4639,9 @@
       "vol_ratio": 15.100453872557791
     },
     "timestamp": "2026-04-30T09:57:31.307353",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": -1.29
   },
   {
     "ticker": "BTC-USD",
@@ -4655,8 +4657,9 @@
       "vol_ratio": 1.0581003960216295
     },
     "timestamp": "2026-04-30T09:57:37.874996",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": 7.16
   },
   {
     "ticker": "NVDA",
@@ -4672,8 +4675,9 @@
       "vol_ratio": 0.8388934537954127
     },
     "timestamp": "2026-04-30T09:57:44.640879",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": -5.15
   },
   {
     "ticker": "^GSPC",
