@@ -4693,8 +4693,9 @@
       "vol_ratio": 1.0253289124100402
     },
     "timestamp": "2026-04-30T18:14:47.686946",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": false,
+    "change_pct": 1.84
   },
   {
     "ticker": "GC=F",
@@ -4710,8 +4711,9 @@
       "vol_ratio": 15.643658875260355
     },
     "timestamp": "2026-04-30T18:14:58.732951",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": -1.73
   },
   {
     "ticker": "BTC-USD",
@@ -4727,8 +4729,9 @@
       "vol_ratio": 1.0207491234195443
     },
     "timestamp": "2026-04-30T18:15:14.094033",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": 6.34
   },
   {
     "ticker": "NVDA",
@@ -4744,8 +4747,9 @@
       "vol_ratio": 0.8388934537954127
     },
     "timestamp": "2026-04-30T18:15:25.426996",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": -5.61
   },
   {
     "ticker": "^GSPC",
@@ -4761,8 +4765,9 @@
       "vol_ratio": 1.0253289124100402
     },
     "timestamp": "2026-04-30T18:27:07.025969",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": false,
+    "change_pct": 1.84
   },
   {
     "ticker": "GC=F",
@@ -4778,8 +4783,9 @@
       "vol_ratio": 15.728488561743891
     },
     "timestamp": "2026-04-30T18:27:21.245445",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": -1.61
   },
   {
     "ticker": "BTC-USD",
@@ -4795,8 +4801,9 @@
       "vol_ratio": 1.0199222634429157
     },
     "timestamp": "2026-04-30T18:27:31.358838",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": 6.38
   },
   {
     "ticker": "NVDA",
@@ -4812,8 +4819,9 @@
       "vol_ratio": 0.8388934537954127
     },
     "timestamp": "2026-04-30T18:27:40.834847",
-    "evaluated": false,
-    "correct": null
+    "evaluated": true,
+    "correct": true,
+    "change_pct": -5.61
   },
   {
     "ticker": "^GSPC",
