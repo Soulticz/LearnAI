@@ -7,7 +7,6 @@ from fx_analyzer import analyze_all_fx, format_fx_message
 import requests
 import json
 from dataclasses import dataclass
-from curl_cffi import request
 from datetime import datetime
 from enum import Enum
 from screener import run_screener, format_screener_message
@@ -16,6 +15,8 @@ import anthropic
 import matplotlib.pyplot as plt
 from paper_trading import apply_signal
 from signal_log import save_signal, evaluate_old_signals, retrain_if_needed
+from news_analyzer import analyze_news, format_news_context
+
 try:
     from strategy_selector import get_strategy_mode
 except Exception:
@@ -34,20 +35,22 @@ class AnalysisResult:
     macd_hist: float
     rsi_14: float
     timestamp: str
-    df_history: pd.DataFrame # เก็บข้อมูลไว้ทำกราฟ
+    df_history: pd.DataFrame
     ml_probability: float | None = None
     decision_reasons: list[str] | None = None
     strategy_mode: str = "UNKNOWN"
     strategy_reason: str = "ยังไม่มีข้อมูล strategy selector"
+    news_sentiment_label: str = "UNKNOWN"
+    news_sentiment_score: int = 0
+    news_summary: str = "ไม่มีข้อมูลข่าว"
 
 # --- Configuration ---
 TICKER = os.getenv("TICKER_SYMBOL", "^GSPC,GC=F,BTC-USD,NVDA")
 watchlist = [t.strip() for t in TICKER.split(",")]
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-#GEMINI_KEY = os.getenv("GEMINI_API_KEY") # เช็คชื่อตัวแปรใน GitHub ให้ตรงนะครับ
-#client = genai.Client(api_key=GEMINI_KEY)
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
 try:
     with open("model.pkl", "rb") as f:
         saved = pickle.load(f)
@@ -75,62 +78,62 @@ def ask_claude(result: AnalysisResult):
     reasons_text = "\n".join(f"- {reason}" for reason in (result.decision_reasons or []))
     ml_text = "ไม่มีข้อมูล ML" if result.ml_probability is None else f"{result.ml_probability:.1%}"
     prompt = f"""คุณคือนักวิเคราะห์การลงทุนมืออาชีพ
-    วิเคราะห์ {result.ticker} จากข้อมูลเชิงเทคนิค:
-    ราคา  : {result.current_price:,.2f}
-    RSI   : {result.rsi_14}
-    MACD Histogram : {result.macd_hist}
-    ML Probability ราคาขึ้น >1% ใน 5 วัน: {ml_text}
-    Final Signal: {result.action.value}
-    Strategy Mode จาก Backtest: {result.strategy_mode}
-    Strategy Reason: {result.strategy_reason}
+วิเคราะห์ {result.ticker} จากข้อมูลเชิงเทคนิค + ข่าว:
+ราคา  : {result.current_price:,.2f}
+RSI   : {result.rsi_14}
+MACD Histogram : {result.macd_hist}
+ML Probability ราคาขึ้น >1% ใน 5 วัน: {ml_text}
+News Sentiment: {result.news_sentiment_label} ({result.news_sentiment_score:+d})
+Final Signal: {result.action.value}
+Strategy Mode จาก Backtest: {result.strategy_mode}
+Strategy Reason: {result.strategy_reason}
 
-    เหตุผลจาก Decision Engine:
-    {reasons_text}
+เหตุผลจาก Decision Engine:
+{reasons_text}
 
-    กรุณาวิเคราะห์ 3 ข้อโดยให้สอดคล้องกับ Final Signal และ Strategy Mode:
-    1. สภาวะตลาดตอนนี้เป็นอย่างไร
-    2. ความเสี่ยงที่ต้องระวัง
-    3. กลยุทธ์แนะนำ (ซื้อ/ขาย/ถือ) พร้อมเหตุผล
+ข่าวล่าสุด:
+{result.news_summary}
 
-    กติกาสำคัญ:
-    - ถ้า Strategy Mode เป็น HOLD ให้ย้ำว่าไม่ควรขายหมดตามสัญญาณสั้น ๆ
-    - ถ้า Strategy Mode เป็น HYBRID ให้แนะนำถือบางส่วนและให้ AI ช่วยจับจังหวะบางส่วน
-    - ถ้า Strategy Mode เป็น WATCH ให้ระวังและรอสัญญาณชัดขึ้น
-    - ถ้า Strategy Mode เป็น AVOID ให้เน้นหลีกเลี่ยง/ลดความเสี่ยง
+กรุณาวิเคราะห์ 3 ข้อโดยให้สอดคล้องกับ Final Signal, Strategy Mode และ News Sentiment:
+1. สภาวะตลาดตอนนี้เป็นอย่างไร
+2. ความเสี่ยงที่ต้องระวัง รวมถึงข่าว
+3. กลยุทธ์แนะนำ (ซื้อ/ขาย/ถือ) พร้อมเหตุผล
 
-    ตอบเป็นภาษาไทย กระชับ เข้าใจง่าย"""
+กติกาสำคัญ:
+- ถ้า Strategy Mode เป็น HOLD ให้ย้ำว่าไม่ควรขายหมดตามสัญญาณสั้น ๆ
+- ถ้า Strategy Mode เป็น HYBRID ให้แนะนำถือบางส่วนและให้ AI ช่วยจับจังหวะบางส่วน
+- ถ้า Strategy Mode เป็น WATCH ให้ระวังและรอสัญญาณชัดขึ้น
+- ถ้า Strategy Mode เป็น AVOID ให้เน้นหลีกเลี่ยง/ลดความเสี่ยง
+- ถ้าข่าวเป็น NEGATIVE ให้ลดความมั่นใจในการซื้อ
+- ถ้าข่าวเป็น POSITIVE แต่ technical ยังไม่ชัด ให้บอกว่ารอดู confirmation
+
+ตอบเป็นภาษาไทย กระชับ เข้าใจง่าย"""
     try:
-        # ใช้โมเดล 1.5-flash เพื่อความเสถียรและฟรี
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=500,
-            messages=[
-                {"role": "user", "content":prompt}
-            ]
+            max_tokens=650,
+            messages=[{"role": "user", "content": prompt}]
         )
         return response.content[0].text
     except Exception as e:
         return f"เกิดข้อผิดพลาดในการวิเคราะห์ AI: {str(e)}"
 
 def notify_discord(result: AnalysisResult, ai_insight: str):
-    """ส่งข้อความพร้อมรูปเข้า Discord"""
-    color = 0x2ecc71 if result.action == Action.BUY else \
-            0xe74c3c if result.action == Action.SELL else 0xf1c40f
-
+    color = 0x2ecc71 if result.action == Action.BUY else 0xe74c3c if result.action == Action.SELL else 0xf1c40f
     ml_value = "N/A" if result.ml_probability is None else f"**{result.ml_probability:.1%}**"
 
-    # สร้าง Payload สำหรับ Embed
     payload = {
         "embeds": [{
             "title": f"🤖 AI Analyst Report: {result.ticker}",
             "description": ai_insight,
             "color": color,
-            "image": {"url": "attachment://chart.png"}, # อ้างอิงไฟล์ภาพ
+            "image": {"url": "attachment://chart.png"},
             "fields": [
                 {"name": "💰 Price", "value": f"**{result.current_price:,.2f}**", "inline": True},
                 {"name": "📊 RSI", "value": f"**{result.rsi_14}**", "inline": True},
                 {"name": "📉 MACD Hist", "value": f"**{result.macd_hist}**", "inline": True},
                 {"name": "🤖 ML Prob", "value": ml_value, "inline": True},
+                {"name": "📰 News", "value": f"**{result.news_sentiment_label} ({result.news_sentiment_score:+d})**", "inline": True},
                 {"name": "🎯 Decision", "value": f"**{result.action.value}**", "inline": True},
                 {"name": "🧭 Strategy", "value": f"**{result.strategy_mode}**", "inline": True},
                 {"name": "📌 Strategy Reason", "value": result.strategy_reason[:1024], "inline": False}
@@ -141,36 +144,26 @@ def notify_discord(result: AnalysisResult, ai_insight: str):
     }
 
     try:
-        # เปิดไฟล์ภาพและส่งไปพร้อมกับ JSON ในก้อนเดียว
         with open("chart.png", "rb") as f:
-            files = {
-                "file": ("chart.png", f, "image/png")
-            }
-            # ส่งแบบ Multipart form-data
-            response = requests.post(
-                WEBHOOK_URL,
-                data={"payload_json": json.dumps(payload)},
-                files=files
-            )
-
+            files = {"file": ("chart.png", f, "image/png")}
+            response = requests.post(WEBHOOK_URL, data={"payload_json": json.dumps(payload)}, files=files)
         if response.status_code in [200, 204]:
             print("✅ ส่ง Discord พร้อมรูปสำเร็จ!")
         else:
             print(f"❌ ส่ง Discord ไม่สำเร็จ: {response.status_code} {response.text}")
     except FileNotFoundError:
         print("❌ ไม่พบไฟล์ chart.png!")
+
 def create_chart(df, ticker):
-    """ฟังก์ชันสร้างกราฟ"""
     plt.figure(figsize=(10, 5))
-    plt.style.use('dark_background') # เปลี่ยนเป็น Dark Mode ให้ดูโปร
+    plt.style.use('dark_background')
     plt.plot(df.index[-30:], df['close'].tail(30), color='#00ff00', linewidth=2)
     plt.title(f"{ticker} Price Action (Last 30 Days)")
     plt.grid(True, alpha=0.3)
     plt.savefig('chart.png')
     plt.close()
 
-def make_decision(rsi, macd_hist, prob=None):
-    """รวม Rule + ML เป็น decision เดียว เพื่อลดสัญญาณขัดกันเอง"""
+def make_decision(rsi, macd_hist, prob=None, news_score: int = 0):
     score = 0
     reasons = []
 
@@ -200,6 +193,15 @@ def make_decision(rsi, macd_hist, prob=None):
         else:
             reasons.append(f"ML ยังไม่ชัดเจน {prob:.1%}")
 
+    if news_score >= 2:
+        score += 1
+        reasons.append(f"ข่าวโดยรวมเป็นบวก ({news_score:+d}) เพิ่มความมั่นใจเล็กน้อย")
+    elif news_score <= -2:
+        score -= 1
+        reasons.append(f"ข่าวโดยรวมเป็นลบ ({news_score:+d}) ลดความมั่นใจ")
+    else:
+        reasons.append(f"ข่าวยังเป็นกลาง ({news_score:+d})")
+
     if score >= 2:
         return Action.BUY, reasons
     elif score <= -2:
@@ -208,14 +210,13 @@ def make_decision(rsi, macd_hist, prob=None):
 
 def analyze_market(ticker_symbol: str) -> AnalysisResult:
     df = yf.download(ticker_symbol, period="6mo", progress=False)
-    if df.empty: raise ValueError("ไม่พบข้อมูลหุ้น")
+    if df.empty:
+        raise ValueError("ไม่พบข้อมูลหุ้น")
 
-    # จัดการชื่อ Column ให้เรียบง่าย
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     df.columns = df.columns.str.lower()
 
-    # คำนวณ Indicators
     df["rsi"] = ta_lib.momentum.RSIIndicator(df["close"], window=14).rsi()
     macd_obj = ta_lib.trend.MACD(df["close"])
     df["macd"] = macd_obj.macd()
@@ -242,16 +243,20 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
             "change_5d": float(close.pct_change(5).iloc[-1]),
             "vol_ratio": float(volume.iloc[-1] / volume.rolling(20).mean().iloc[-1]),
         }])
-
         if ML_FEATURES:
             feat_row = feat_row[ML_FEATURES]
-
         prob = ML_MODEL.predict_proba(feat_row)[0][1]
         print(f"ความน่าจะเป็นที่ราคาจะขึ้น >1% ใน 5 วัน: {prob:.1%}")
     else:
         print("⚠️  ไม่พบโมเดล ML กำลังใช้ Logic พื้นฐาน")
 
-    action, reasons = make_decision(lasted_rsi, lasted_hist, prob)
+    news_result = analyze_news(ticker_symbol)
+    news_score = int(news_result.get("sentiment_score", 0))
+    news_label = str(news_result.get("sentiment_label", "UNKNOWN"))
+    news_summary = format_news_context(news_result)
+    print(f"📰 News sentiment {ticker_symbol}: {news_label} ({news_score:+d})")
+
+    action, reasons = make_decision(lasted_rsi, lasted_hist, prob, news_score)
     strategy_mode, strategy_reason = load_strategy_info(ticker_symbol)
 
     return AnalysisResult(
@@ -261,15 +266,17 @@ def analyze_market(ticker_symbol: str) -> AnalysisResult:
         macd_hist=round(lasted_hist, 4),
         action=action,
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        df_history=df, # ส่ง df ไปใช้วาดกราฟ
+        df_history=df,
         ml_probability=prob,
         decision_reasons=reasons,
         strategy_mode=strategy_mode,
         strategy_reason=strategy_reason,
+        news_sentiment_label=news_label,
+        news_sentiment_score=news_score,
+        news_summary=news_summary,
     )
 
 if __name__ == "__main__":
-
     print("🤖 AI Stock Bot กำลังทำงาน...")
     new_data = evaluate_old_signals()
     retrain_if_needed(new_data)
@@ -277,45 +284,36 @@ if __name__ == "__main__":
     print("\n🤖 กำลังวิเคราะห์หุ้น...")
     top5 = run_screener(top_n=5)
     msg = format_screener_message(top5)
-    requests.post(WEBHOOK_URL, json={
-        "content": msg})
+    requests.post(WEBHOOK_URL, json={"content": msg})
     print("✅ ส่ง Screener report แล้ว")
-
-
 
     print("💱 กำลังวิเคราะห์อัตราแลกเปลี่ยน...")
     fx_results = analyze_all_fx()
     if fx_results:
         fx_msg = format_fx_message(fx_results)
-        # ส่ง Discord
-        requests.post(WEBHOOK_URL, json={
-            "content": fx_msg.replace("*", "**")
-                                .replace("`", "`")
-        })
+        requests.post(WEBHOOK_URL, json={"content": fx_msg.replace("*", "**").replace("`", "`")})
         print("✅ ส่ง FX report แล้ว")
+
     for ticker in watchlist:
         try:
-        # 1. วิเคราะห์ตลาด
-            result = analyze_market( ticker)
-
+            result = analyze_market(ticker)
             save_signal(
                 ticker=ticker,
                 action=result.action.value,
                 price=result.current_price,
                 features={
-                     "rsi":       result.rsi_14,
-                     "macd_hist": result.macd_hist,
-                     "sma_20":    float(result.df_history["close"].rolling(20).mean().iloc[-1]),
-                     "sma_50":    float(result.df_history["close"].rolling(50).mean().iloc[-1]),
-                     "change_1d": float(result.df_history["close"].pct_change(1).iloc[-1]),
-                     "change_5d": float(result.df_history["close"].pct_change(5).iloc[-1]),
-                     "vol_ratio": float(result.df_history["volume"].iloc[-1]
-                                     / result.df_history["volume"].rolling(20).mean().iloc[-1]),
+                    "rsi": result.rsi_14,
+                    "macd_hist": result.macd_hist,
+                    "sma_20": float(result.df_history["close"].rolling(20).mean().iloc[-1]),
+                    "sma_50": float(result.df_history["close"].rolling(50).mean().iloc[-1]),
+                    "change_1d": float(result.df_history["close"].pct_change(1).iloc[-1]),
+                    "change_5d": float(result.df_history["close"].pct_change(5).iloc[-1]),
+                    "vol_ratio": float(result.df_history["volume"].iloc[-1] / result.df_history["volume"].rolling(20).mean().iloc[-1]),
+                    "news_score": result.news_sentiment_score,
                 }
-
             )
-            excuted, msg, portfolio = apply_signal(
-                ticker= result.ticker,
+            executed, msg, portfolio = apply_signal(
+                ticker=result.ticker,
                 action_value=result.action.value,
                 price=result.current_price,
                 strategy_mode=result.strategy_mode,
@@ -323,19 +321,14 @@ if __name__ == "__main__":
             )
             print(f" paper trading {msg}")
 
-        # 2. วาดกราฟ
             print("🎨 สร้างกราฟ...")
             create_chart(result.df_history, ticker)
 
-        # 3. ให้ AI วิเคราะห์
             print(f"🤖 AI กำลังคิด...{ticker}")
             ai_insight = ask_claude(result)
 
-        # 4. ส่งแจ้งเตือน
             notify_discord(result, ai_insight)
             print(f"AI Insight: {ticker}")
 
         except Exception as e:
             print(f"❌{ticker} Error: {str(e)}")
-
-
