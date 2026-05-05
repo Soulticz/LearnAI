@@ -1,8 +1,12 @@
 import json
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:
+    st_autorefresh = None
 
 from money_tracker import ensure_portfolio_file, summarize_money, PORTFOLIO_FILE
 from money_ai import ask_money_ai
@@ -10,9 +14,25 @@ from buy_advisor import build_buy_advice, format_buy_advice
 
 st.set_page_config(page_title="My Money", page_icon="💰", layout="wide")
 
-
 st.title("💰 My Money Dashboard")
-st.caption("ดูพอร์ต + เพิ่ม/แก้ไขหุ้น ทอง กองทุน และวิเคราะห์ด้วย AI")
+st.caption("ดูพอร์ต + เพิ่ม/แก้ไขหุ้น ทอง กองทุน + AI + Buy Advisor")
+
+# ===== Auto refresh =====
+with st.sidebar:
+    st.subheader("⏱ Refresh")
+    auto_refresh = st.toggle("Auto refresh", value=True)
+    refresh_minutes = st.selectbox("รอบเช็ก", [5, 10, 15, 30, 60], index=2)
+
+    if auto_refresh:
+        if st_autorefresh is not None:
+            st_autorefresh(interval=refresh_minutes * 60 * 1000, key="my_money_auto_refresh")
+            st.caption(f"รีเฟรชทุก {refresh_minutes} นาที")
+        else:
+            st.warning("ยังไม่ได้ติดตั้ง streamlit-autorefresh")
+            st.code("pip install streamlit-autorefresh")
+
+    if st.button("🔄 Refresh ตอนนี้"):
+        st.rerun()
 
 
 def save_personal_portfolio(portfolio: dict):
@@ -28,13 +48,7 @@ def reload_data():
 
 portfolio, summary = reload_data()
 
-st.subheader("💡 Buy Advisor")
-if st.button("ประเมินซิ้อ"):
-    advice = build_buy_advice(summary)
-    st.info(format_buy_advice(advice))
-
 st.subheader("📊 Portfolio Overview")
-
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Total", f"{summary['total_thb']:,.2f}")
 col2.metric("Cash", f"{summary['cash_thb']:,.2f}")
@@ -46,7 +60,7 @@ st.divider()
 # =========================
 # Add / update portfolio
 # =========================
-st.subheader("➕ เพิ่มรายการลงทุน")
+st.subheader("➕ เพิ่ม/อัปเดตรายการลงทุน")
 
 with st.form("add_asset_form"):
     item_type = st.selectbox("ประเภท", ["หุ้น/ทอง/ETF (Dime)", "กองทุน", "เงินสด"])
@@ -71,7 +85,16 @@ with st.form("add_asset_form"):
                     "amount_thb": float(amount_thb),
                     "avg_price": float(avg_price),
                 }
-                portfolio.setdefault("assets", []).append(new_asset)
+                # ถ้ามี ticker เดิม ให้ update แทนการเพิ่มซ้ำ
+                assets = portfolio.setdefault("assets", [])
+                updated = False
+                for idx, asset in enumerate(assets):
+                    if str(asset.get("ticker", "")).upper() == new_asset["ticker"]:
+                        assets[idx] = new_asset
+                        updated = True
+                        break
+                if not updated:
+                    assets.append(new_asset)
                 save_personal_portfolio(portfolio)
                 st.success(f"บันทึก {new_asset['ticker']} แล้ว")
                 st.rerun()
@@ -91,7 +114,15 @@ with st.form("add_asset_form"):
                 "amount_thb": float(fund_amount),
                 "note": fund_note.strip(),
             }
-            portfolio.setdefault("funds", []).append(new_fund)
+            funds = portfolio.setdefault("funds", [])
+            updated = False
+            for idx, fund in enumerate(funds):
+                if str(fund.get("name", "")).upper() == new_fund["name"].upper():
+                    funds[idx] = new_fund
+                    updated = True
+                    break
+            if not updated:
+                funds.append(new_fund)
             save_personal_portfolio(portfolio)
             st.success(f"บันทึกกองทุน {new_fund['name']} แล้ว")
             st.rerun()
@@ -113,8 +144,7 @@ st.divider()
 st.subheader("🐢 Funds")
 funds = portfolio.get("funds", [])
 if funds:
-    fund_df = pd.DataFrame(funds)
-    st.dataframe(fund_df, use_container_width=True)
+    st.dataframe(pd.DataFrame(funds), use_container_width=True)
 else:
     st.info("ยังไม่มีกองทุน")
 
@@ -158,6 +188,11 @@ st.subheader("⚠️ Risk Notes")
 for note in summary["risk_notes"]:
     st.warning(note)
 
+st.subheader("🎯 Buy Advisor")
+if st.button("ประเมินการซื้อ"):
+    advice = build_buy_advice(summary)
+    st.info(format_buy_advice(advice))
+
 st.subheader("🤖 AI Advisor")
 question = st.text_input("ถาม AI เกี่ยวกับพอร์ต", value="ช่วยวิเคราะห์พอร์ตของเราหน่อย")
 if st.button("วิเคราะห์พอร์ต"):
@@ -174,4 +209,3 @@ with st.expander("ดู/แก้ raw JSON"):
             st.rerun()
         except json.JSONDecodeError as e:
             st.error(f"JSON ไม่ถูกต้อง: {e}")
-
