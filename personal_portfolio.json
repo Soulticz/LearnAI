@@ -1,0 +1,42 @@
+{
+  "cash_thb": 0,
+  "funds": [
+    {
+      "name": "TSP5",
+      "amount_thb": 2000,
+      "note": "กองทุนรวม ถือยาว ไม่ต้องดูรายวัน"
+    }
+  ],
+  "assets": [
+    {
+      "ticker": "MSFT",
+      "name": "MSFT",
+      "amount_thb": 287.83,
+      "avg_price": 0.0
+    },
+    {
+      "ticker": "RMNI",
+      "name": "RMNI",
+      "amount_thb": 193.9,
+      "avg_price": 0.0
+    },
+    {
+      "ticker": "AUR",
+      "name": "AUR",
+      "amount_thb": 212.93,
+      "avg_price": 0.0
+    },
+    {
+      "ticker": "NVDA",
+      "name": "NVDA",
+      "amount_thb": 190.79,
+      "avg_price": 0.0
+    },
+    {
+      "ticker": "SNDK",
+      "name": "SNDK",
+      "amount_thb": 155.89,
+      "avg_price": 0.0
+    }
+  ]
+}

@@ -6,8 +6,13 @@ import streamlit as st
 
 from money_tracker import ensure_portfolio_file, summarize_money, PORTFOLIO_FILE
 from money_ai import ask_money_ai
+from buy_advisor import build_buy_advice, format_buy_advice
 
 st.set_page_config(page_title="My Money", page_icon="💰", layout="wide")
+st.subheader("💡 Buy Advisor")
+if st.button("ประเมินซิ้อ"):
+    advice = build_buy_advice(summary)
+    st.info(format_buy_advice(advice))
 
 st.title("💰 My Money Dashboard")
 st.caption("ดูพอร์ต + เพิ่ม/แก้ไขหุ้น ทอง กองทุน และวิเคราะห์ด้วย AI")
@@ -167,3 +172,4 @@ with st.expander("ดู/แก้ raw JSON"):
             st.rerun()
         except json.JSONDecodeError as e:
             st.error(f"JSON ไม่ถูกต้อง: {e}")
+
