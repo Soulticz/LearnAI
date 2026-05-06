@@ -34,14 +34,28 @@ def ensure_portfolio_file(path: Path = PORTFOLIO_FILE) -> dict[str, Any]:
 
 
 def get_latest_price(ticker: str) -> float | None:
+    """Get latest close price for one ticker only.
+
+    Using yf.Ticker().history() avoids the shifted-price issue that can happen
+    when yf.download() returns a multi-index dataframe or cached batch data.
+    """
+    ticker = str(ticker or "").upper().strip()
+    if not ticker:
+        return None
+
     try:
-        df = yf.download(ticker, period="5d", interval="1d", progress=False)
-        if df.empty:
+        hist = yf.Ticker(ticker).history(period="5d", interval="1d", auto_adjust=False)
+        if hist.empty or "Close" not in hist.columns:
             return None
-        if hasattr(df.columns, "nlevels") and df.columns.nlevels > 1:
-            df.columns = df.columns.get_level_values(0)
-        df.columns = df.columns.str.lower()
-        return float(df["close"].iloc[-1])
+
+        close = hist["Close"].dropna()
+        if close.empty:
+            return None
+
+        price = float(close.iloc[-1])
+        if price <= 0:
+            return None
+        return price
     except Exception:
         return None
 
