@@ -47,6 +47,16 @@ def reload_data():
     return portfolio, summary
 
 
+def ai_color(score: int) -> str:
+    if score >= 75:
+        return "🟢"
+    if score >= 55:
+        return "🔵"
+    if score >= 40:
+        return "🟡"
+    return "🔴"
+
+
 portfolio, summary = reload_data()
 
 st.subheader("📊 Portfolio Overview")
@@ -55,6 +65,31 @@ col1.metric("เงินต้นรวม", f"{summary['asset_total_thb']:,.2f
 col2.metric("มูลค่าปัจจุบัน", f"{summary['asset_market_total_thb']:,.2f}")
 col3.metric("กำไร/ขาดทุน", f"{summary['asset_profit_thb']:+,.2f}", f"{summary['asset_profit_pct']:+.2f}%")
 col4.metric("Cash", f"{summary['cash_thb']:,.2f}")
+
+assets = summary.get("assets", [])
+
+if assets:
+    best_profit = max(assets, key=lambda x: x.get("pnl_pct", -9999) if x.get("pnl_pct") is not None else -9999)
+    best_ai = max(assets, key=lambda x: x.get("ai_score", 0))
+    worst_asset = min(assets, key=lambda x: x.get("pnl_pct", 9999) if x.get("pnl_pct") is not None else 9999)
+
+    st.subheader("🔥 Highlights")
+    h1, h2, h3 = st.columns(3)
+
+    with h1:
+        st.success(
+            f"🏆 Best Performer\n\n{best_profit.get('ticker')}\n{best_profit.get('pnl_pct', 0):+.2f}%"
+        )
+
+    with h2:
+        st.info(
+            f"🤖 Highest AI Score\n\n{best_ai.get('ticker')}\n{best_ai.get('ai_score', 0)}/100"
+        )
+
+    with h3:
+        st.error(
+            f"⚠️ Highest Risk\n\n{worst_asset.get('ticker')}\n{worst_asset.get('pnl_pct', 0):+.2f}%"
+        )
 
 st.divider()
 
@@ -105,16 +140,16 @@ with st.form("add_asset_form"):
                 if current_price_manual > 0:
                     new_asset["current_price_manual"] = float(current_price_manual)
 
-                assets = portfolio.setdefault("assets", [])
+                assets_portfolio = portfolio.setdefault("assets", [])
                 updated = False
-                for idx, asset in enumerate(assets):
+                for idx, asset in enumerate(assets_portfolio):
                     if str(asset.get("ticker", "")).upper() == new_asset["ticker"]:
-                        assets[idx] = new_asset
+                        assets_portfolio[idx] = new_asset
                         updated = True
                         break
 
                 if not updated:
-                    assets.append(new_asset)
+                    assets_portfolio.append(new_asset)
 
                 save_personal_portfolio(portfolio)
                 st.success(f"บันทึก {new_asset['ticker']} แล้ว")
@@ -169,11 +204,57 @@ if funds:
 else:
     st.info("ยังไม่มีกองทุน")
 
-st.subheader("📊 Assets")
-assets = summary.get("assets", [])
+st.subheader("📊 AI Assets")
+
 if assets:
-    asset_df = pd.DataFrame(assets)
-    st.dataframe(asset_df, use_container_width=True)
+    for asset in assets:
+        ticker = asset.get("ticker", "N/A")
+        name = asset.get("name", ticker)
+        ai_score = int(asset.get("ai_score", 0))
+        pnl_pct = asset.get("pnl_pct")
+        trend = asset.get("trend", "N/A")
+        commentary = asset.get("ai_commentary", "")
+        current_price = asset.get("current_price")
+        avg_price = asset.get("avg_price")
+        rsi = asset.get("rsi")
+        volatility = asset.get("volatility_pct")
+
+        pnl_text = "N/A" if pnl_pct is None else f"{pnl_pct:+.2f}%"
+        current_text = "N/A" if current_price is None else f"{current_price:,.2f}"
+
+        with st.container(border=True):
+            top1, top2, top3 = st.columns([2, 1, 1])
+
+            with top1:
+                st.markdown(f"### {ticker}")
+                st.caption(name)
+
+            with top2:
+                st.metric("P/L", pnl_text)
+
+            with top3:
+                st.metric("AI Score", f"{ai_score}/100")
+                st.caption(f"{ai_color(ai_score)} {trend}")
+
+            st.write(commentary)
+
+            with st.expander(f"ดูรายละเอียด {ticker}"):
+                d1, d2, d3 = st.columns(3)
+
+                with d1:
+                    st.write(f"💰 เงินต้น: {asset.get('amount_thb', 0):,.2f} บาท")
+                    st.write(f"📈 ราคาปัจจุบัน: {current_text}")
+                    st.write(f"📊 Avg Price: {avg_price:,.2f}")
+
+                with d2:
+                    st.write(f"⚡ RSI: {rsi}")
+                    st.write(f"📉 Volatility: {volatility}%")
+                    st.write(f"📈 Trend: {trend}")
+
+                with d3:
+                    st.write(f"🤖 Status: {asset.get('status')} ")
+                    st.write(f"🎯 Action: {asset.get('action')} ")
+                    st.write(f"💵 มูลค่าปัจจุบัน: {asset.get('estimated_value_thb', 0):,.2f} บาท")
 else:
     st.info("ยังไม่ได้กรอกหุ้น/ทอง")
 
