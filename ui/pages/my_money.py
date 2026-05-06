@@ -4,6 +4,11 @@ import pandas as pd
 import streamlit as st
 
 try:
+    import plotly.express as px
+except Exception:
+    px = None
+
+try:
     from streamlit_autorefresh import st_autorefresh
 except Exception:
     st_autorefresh = None
@@ -71,7 +76,7 @@ st.markdown(
         font-weight: 800;
         margin: 18px 0 10px 0;
     }
-    .highlight-card {
+    .highlight-card, .chart-card {
         padding: 18px 20px;
         border-radius: 20px;
         background: rgba(15, 23, 42, 0.7);
@@ -127,6 +132,29 @@ st.markdown(
         border-radius: 16px;
         background: rgba(2, 6, 23, 0.32);
         border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+    .heatmap-row {
+        display: grid;
+        grid-template-columns: 92px 1fr 84px;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    .heatbar-bg {
+        height: 14px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.16);
+        overflow: hidden;
+    }
+    .heatbar-pos {
+        height: 14px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #22c55e, #a3e635);
+    }
+    .heatbar-neg {
+        height: 14px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #fb7185, #f97316);
     }
     div[data-testid="stMetric"] {
         background: rgba(15, 23, 42, 0.62);
@@ -226,6 +254,31 @@ def metric_card(label: str, value: str, delta: str | None = None, positive: bool
     )
 
 
+def make_chart_df(assets: list[dict]) -> pd.DataFrame:
+    rows = []
+    for asset in assets:
+        rows.append({
+            "ticker": asset.get("ticker", "N/A"),
+            "name": asset.get("name", asset.get("ticker", "N/A")),
+            "value_thb": float(asset.get("estimated_value_thb", asset.get("amount_thb", 0)) or 0),
+            "profit_thb": float(asset.get("profit_thb", 0) or 0),
+            "pnl_pct": asset.get("pnl_pct"),
+            "ai_score": int(asset.get("ai_score", 0) or 0),
+        })
+    return pd.DataFrame(rows)
+
+
+def plotly_layout(fig):
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e5e7eb"),
+        margin=dict(l=10, r=10, t=35, b=10),
+        legend=dict(font=dict(color="#cbd5e1")),
+    )
+    return fig
+
+
 portfolio, summary = reload_data()
 assets = summary.get("assets", [])
 
@@ -283,6 +336,47 @@ if assets:
             """,
             unsafe_allow_html=True,
         )
+
+    st.markdown('<div class="section-title">📈 Visual Portfolio</div>', unsafe_allow_html=True)
+    chart_df = make_chart_df(assets)
+    v1, v2 = st.columns([1, 1])
+
+    with v1:
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        st.markdown("**🥧 Allocation**")
+        if px is not None and not chart_df.empty:
+            fig = px.pie(
+                chart_df,
+                names="ticker",
+                values="value_thb",
+                hole=0.55,
+                title="มูลค่าปัจจุบันแยกตามสินทรัพย์",
+            )
+            fig = plotly_layout(fig)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.dataframe(chart_df[["ticker", "value_thb"]], use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with v2:
+        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+        st.markdown("**🔥 Gain / Loss Heatmap**")
+        max_abs = max([abs(float(x or 0)) for x in chart_df["pnl_pct"].fillna(0).tolist()] + [1])
+        for _, row in chart_df.sort_values("pnl_pct", ascending=False, na_position="last").iterrows():
+            pnl = float(row["pnl_pct"] or 0)
+            width = min(100, abs(pnl) / max_abs * 100)
+            bar_class = "heatbar-pos" if pnl >= 0 else "heatbar-neg"
+            st.markdown(
+                f"""
+                <div class="heatmap-row">
+                    <div><b>{row['ticker']}</b></div>
+                    <div class="heatbar-bg"><div class="{bar_class}" style="width:{width}%;"></div></div>
+                    <div style="text-align:right;">{pnl:+.2f}%</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
 
