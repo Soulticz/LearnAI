@@ -1,3 +1,6 @@
+streamlit
+streamlit-autorefresh
+plotly
 yfinance
 pandas
 ta
