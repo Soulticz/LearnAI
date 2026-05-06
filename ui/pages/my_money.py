@@ -51,10 +51,10 @@ portfolio, summary = reload_data()
 
 st.subheader("📊 Portfolio Overview")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total", f"{summary['total_thb']:,.2f}")
-col2.metric("Cash", f"{summary['cash_thb']:,.2f}")
-col3.metric("Funds", f"{summary['fund_total_thb']:,.2f}")
-col4.metric("Assets", f"{summary['asset_total_thb']:,.2f}")
+col1.metric("เงินต้นรวม", f"{summary['asset_total_thb']:,.2f}")
+col2.metric("มูลค่าปัจจุบัน", f"{summary['asset_market_total_thb']:,.2f}")
+col3.metric("กำไร/ขาดทุน", f"{summary['asset_profit_thb']:+,.2f}", f"{summary['asset_profit_pct']:+.2f}%")
+col4.metric("Cash", f"{summary['cash_thb']:,.2f}")
 
 st.divider()
 
@@ -69,11 +69,25 @@ with st.form("add_asset_form"):
     if item_type == "หุ้น/ทอง/ETF (Dime)":
         c1, c2 = st.columns(2)
         with c1:
-            ticker = st.text_input("Ticker เช่น AAPL, SNDK, GLD, GC=F", value="")
-            name = st.text_input("ชื่อเรียก เช่น Apple, Gold", value="")
+            ticker = st.text_input("Ticker เช่น AAPL, SNDK, GC=F", value="")
+            name = st.text_input("ชื่อเรียก เช่น Apple, YLG GOLD 99.99", value="")
+            qty = st.number_input(
+                "จำนวนที่ถือ เช่น หุ้น / oz",
+                min_value=0.0,
+                value=0.0,
+                step=0.000001,
+                format="%.6f",
+            )
+
         with c2:
             amount_thb = st.number_input("เงินที่ลงไว้ (บาท)", min_value=0.0, value=0.0, step=100.0)
-            avg_price = st.number_input("ราคาซื้อเฉลี่ย", min_value=0.0, value=0.0, step=1.0)
+            avg_price = st.number_input("ราคาซื้อเฉลี่ย", min_value=0.0, value=0.0, step=0.01)
+            current_price_manual = st.number_input(
+                "ราคาปัจจุบันแบบกรอกเอง",
+                min_value=0.0,
+                value=0.0,
+                step=0.01,
+            )
 
         submitted = st.form_submit_button("บันทึกหุ้น/ทอง")
         if submitted:
@@ -84,8 +98,13 @@ with st.form("add_asset_form"):
                     "ticker": ticker.upper().strip(),
                     "name": name.strip() or ticker.upper().strip(),
                     "amount_thb": float(amount_thb),
+                    "qty": float(qty),
                     "avg_price": float(avg_price),
                 }
+
+                if current_price_manual > 0:
+                    new_asset["current_price_manual"] = float(current_price_manual)
+
                 assets = portfolio.setdefault("assets", [])
                 updated = False
                 for idx, asset in enumerate(assets):
@@ -93,8 +112,10 @@ with st.form("add_asset_form"):
                         assets[idx] = new_asset
                         updated = True
                         break
+
                 if not updated:
                     assets.append(new_asset)
+
                 save_personal_portfolio(portfolio)
                 st.success(f"บันทึก {new_asset['ticker']} แล้ว")
                 st.rerun()
