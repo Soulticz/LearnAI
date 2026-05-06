@@ -120,6 +120,27 @@ def build_buy_advice(summary: dict[str, Any] | None = None) -> dict[str, Any]:
         verdict = "ยังไม่ควรซื้อเพิ่ม"
         action = "ห้ามซื้อเพิ่มตอนนี้"
 
+    # ===== Position Sizing =====
+    if score >= 80:
+        size_pct = 10
+    elif score >= 70:
+        size_pct = 5
+    elif score >= 40:
+        size_pct = 2
+    else:
+        size_pct = 0
+
+    # ===== Risk Engine =====
+    if high_risk_count > 0:
+        size_pct = max(0, size_pct - 3)
+        reasons.append("Risk Engine: มีสินทรัพย์เสี่ยงในพอร์ต จึงลดขนาดไม้ซื้อ")
+
+    if cash <= 0:
+        size_pct = 0
+        reasons.append("Risk Engine: ไม่มีเงินสด จึงห้ามซื้อ")
+
+    recommended_cash = cash * (size_pct / 100)
+
     return {
         "score": score,
         "verdict": verdict,
@@ -127,6 +148,8 @@ def build_buy_advice(summary: dict[str, Any] | None = None) -> dict[str, Any]:
         "reasons": reasons,
         "candidates": candidates,
         "market_change_spy": market_change,
+        "recommended_size_pct": size_pct,
+        "recommended_cash_to_use": recommended_cash,
     }
 
 
@@ -136,6 +159,8 @@ def format_buy_advice(advice: dict[str, Any]) -> str:
         f"Score: {advice['score']}/100",
         f"Action: {advice['action']}",
         f"สรุป: {advice['verdict']}",
+        f"Position Size: ใช้เงินสด {advice.get('recommended_size_pct', 0)}%",
+        f"เงินที่แนะนำให้ใช้: {advice.get('recommended_cash_to_use', 0):,.2f} บาท",
         "",
         "เหตุผล:",
     ]
