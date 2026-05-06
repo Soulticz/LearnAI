@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,7 @@ DEFAULT_PORTFOLIO = {
     "assets": [
         # ตัวอย่าง:
         # {"ticker": "AAPL", "name": "Apple", "amount_thb": 500, "avg_price": 200},
-        # {"ticker": "GLD", "name": "Gold ETF", "amount_thb": 500, "avg_price": 300},
+        # {"ticker": "GC=F", "name": "YLG GOLD 99.99", "amount_thb": 995.58, "avg_price": 4702.13, "current_price_manual": 4695.43},
     ]
 }
 
@@ -47,42 +46,63 @@ def get_latest_price(ticker: str) -> float | None:
         return None
 
 
+def calc_status_and_action(pnl_pct: float | None) -> tuple[str, str]:
+    if pnl_pct is None:
+        return "ยังประเมินไม่ได้", "รอดู"
+
+    if pnl_pct >= 10:
+        return "กำไรดีมาก", "พิจารณาขายบางส่วน/ล็อกกำไร"
+    if pnl_pct >= 5:
+        return "กำไรเริ่มดี", "ถือได้ แต่เริ่มระวังย่อ"
+    if pnl_pct <= -10:
+        return "ขาดทุนหนัก", "ทบทวนเหตุผลที่ถือ อย่าเติมเงินแก้มือทันที"
+    if pnl_pct <= -5:
+        return "ขาดทุนเล็กน้อย", "รอดู อย่ารีบขายเพราะตกใจ"
+    return "แกว่งในกรอบ", "ถือ/รอสัญญาณชัด"
+
+
 def analyze_asset(asset: dict[str, Any]) -> dict[str, Any]:
     ticker = str(asset.get("ticker", "")).upper().strip()
     avg_price = float(asset.get("avg_price", 0) or 0)
     amount_thb = float(asset.get("amount_thb", 0) or 0)
-    current_price = get_latest_price(ticker) if ticker else None
+    qty = float(asset.get("qty", 0) or 0)
+
+    manual_price = asset.get("current_price_manual")
+    if manual_price not in (None, "", 0):
+        current_price = float(manual_price)
+        price_source = "manual"
+    else:
+        current_price = get_latest_price(ticker) if ticker else None
+        price_source = "yfinance" if current_price is not None else "none"
 
     pnl_pct = None
-    status = "ยังประเมินไม่ได้"
-    action = "รอดู"
+    estimated_value_thb = amount_thb
+    profit_thb = 0.0
 
     if current_price is not None and avg_price > 0:
         pnl_pct = ((current_price - avg_price) / avg_price) * 100
+        estimated_value_thb = amount_thb * (1 + pnl_pct / 100)
+        profit_thb = estimated_value_thb - amount_thb
 
-        if pnl_pct >= 10:
-            status = "กำไรดีมาก"
-            action = "พิจารณาขายบางส่วน/ล็อกกำไร"
-        elif pnl_pct >= 5:
-            status = "กำไรเริ่มดี"
-            action = "ถือได้ แต่เริ่มระวังย่อ"
-        elif pnl_pct <= -10:
-            status = "ขาดทุนหนัก"
-            action = "ทบทวนเหตุผลที่ถือ อย่าเติมเงินแก้มือทันที"
-        elif pnl_pct <= -5:
-            status = "ขาดทุนเล็กน้อย"
-            action = "รอดู อย่ารีบขายเพราะตกใจ"
-        else:
-            status = "แกว่งในกรอบ"
-            action = "ถือ/รอสัญญาณชัด"
+    cost_value = qty * avg_price if qty > 0 and avg_price > 0 else None
+    market_value = qty * current_price if qty > 0 and current_price is not None else None
+
+    status, action = calc_status_and_action(pnl_pct)
 
     return {
         "ticker": ticker,
         "name": asset.get("name", ticker),
         "amount_thb": amount_thb,
+        "qty": qty,
         "avg_price": avg_price,
         "current_price": current_price,
+        "current_price_manual": float(manual_price) if manual_price not in (None, "", 0) else None,
+        "price_source": price_source,
         "pnl_pct": pnl_pct,
+        "estimated_value_thb": estimated_value_thb,
+        "profit_thb": profit_thb,
+        "cost_value": cost_value,
+        "market_value": market_value,
         "status": status,
         "action": action,
     }
@@ -96,8 +116,11 @@ def summarize_money(portfolio: dict[str, Any] | None = None) -> dict[str, Any]:
 
     analyzed_assets = [analyze_asset(asset) for asset in assets]
     fund_total = sum(float(f.get("amount_thb", 0) or 0) for f in funds)
-    asset_total = sum(float(a.get("amount_thb", 0) or 0) for a in assets)
-    total = cash_thb + fund_total + asset_total
+    asset_cost_total = sum(float(a.get("amount_thb", 0) or 0) for a in assets)
+    asset_market_total = sum(float(a.get("estimated_value_thb", a.get("amount_thb", 0)) or 0) for a in analyzed_assets)
+    asset_profit_total = asset_market_total - asset_cost_total
+    asset_profit_pct = (asset_profit_total / asset_cost_total * 100) if asset_cost_total > 0 else 0
+    total = cash_thb + fund_total + asset_market_total
 
     risk_notes = []
     high_risk_count = 0
@@ -115,7 +138,10 @@ def summarize_money(portfolio: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "cash_thb": cash_thb,
         "fund_total_thb": fund_total,
-        "asset_total_thb": asset_total,
+        "asset_total_thb": asset_cost_total,
+        "asset_market_total_thb": asset_market_total,
+        "asset_profit_thb": asset_profit_total,
+        "asset_profit_pct": asset_profit_pct,
         "total_thb": total,
         "funds": funds,
         "assets": analyzed_assets,
@@ -129,7 +155,9 @@ def format_money_summary(summary: dict[str, Any]) -> str:
     lines.append("💰 Soul Money Checker")
     lines.append(f"เงินสด: {summary['cash_thb']:,.2f} บาท")
     lines.append(f"กองทุน: {summary['fund_total_thb']:,.2f} บาท")
-    lines.append(f"หุ้น/ทองใน Dime: {summary['asset_total_thb']:,.2f} บาท")
+    lines.append(f"ต้นทุนหุ้น/ทองใน Dime: {summary['asset_total_thb']:,.2f} บาท")
+    lines.append(f"มูลค่าหุ้น/ทองโดยประมาณ: {summary['asset_market_total_thb']:,.2f} บาท")
+    lines.append(f"กำไร/ขาดทุนหุ้น/ทอง: {summary['asset_profit_thb']:+,.2f} บาท ({summary['asset_profit_pct']:+.2f}%)")
     lines.append(f"รวมโดยประมาณ: {summary['total_thb']:,.2f} บาท")
 
     lines.append("\n🐢 กองทุน")
@@ -144,8 +172,9 @@ def format_money_summary(summary: dict[str, Any]) -> str:
         for asset in assets:
             pnl_text = "N/A" if asset.get("pnl_pct") is None else f"{asset['pnl_pct']:+.2f}%"
             price_text = "N/A" if asset.get("current_price") is None else f"{asset['current_price']:,.2f}"
+            value_text = f"{asset.get('estimated_value_thb', asset['amount_thb']):,.2f} บาท"
             lines.append(
-                f"- {asset['ticker']}: {asset['amount_thb']:,.2f} บาท | Last {price_text} | P/L {pnl_text} | {asset['action']}"
+                f"- {asset['ticker']}: ต้นทุน {asset['amount_thb']:,.2f} บาท | มูลค่า {value_text} | Last {price_text} | P/L {pnl_text} | {asset['action']}"
             )
 
     lines.append("\n⚠️ สิ่งที่ต้องระวัง")
