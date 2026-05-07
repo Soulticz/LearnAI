@@ -4,6 +4,13 @@ from typing import Any
 
 import yfinance as yf
 
+from ai_score_engine import calc_ai_score_v2, build_score_v2_commentary
+
+try:
+    from news_sentiment import analyze_ticker_news
+except Exception:
+    analyze_ticker_news = None
+
 PORTFOLIO_FILE = Path("personal_portfolio.json")
 
 DEFAULT_PORTFOLIO = {
@@ -48,11 +55,6 @@ def get_price_history(ticker: str, period: str = "6mo", interval: str = "1d"):
 
 
 def get_latest_price(ticker: str) -> float | None:
-    """Get latest close price for one ticker only.
-
-    Using yf.Ticker().history() avoids the shifted-price issue that can happen
-    when yf.download() returns a multi-index dataframe or cached batch data.
-    """
     hist = get_price_history(ticker, period="5d", interval="1d")
     if hist is None:
         return None
@@ -137,6 +139,15 @@ def get_technical_signals(ticker: str) -> dict[str, Any]:
             "trend": "N/A",
             "volatility_pct": None,
         }
+
+
+def get_news_result(ticker: str) -> dict[str, Any] | None:
+    if analyze_ticker_news is None or not ticker:
+        return None
+    try:
+        return analyze_ticker_news(ticker, limit=5)
+    except Exception:
+        return None
 
 
 def calc_status_and_action(pnl_pct: float | None) -> tuple[str, str]:
@@ -243,6 +254,7 @@ def build_ai_commentary(ticker: str, pnl_pct: float | None, signals: dict[str, A
 
 def analyze_asset(asset: dict[str, Any]) -> dict[str, Any]:
     ticker = str(asset.get("ticker", "")).upper().strip()
+    name = asset.get("name", ticker)
     avg_price = float(asset.get("avg_price", 0) or 0)
     amount_thb = float(asset.get("amount_thb", 0) or 0)
     qty = float(asset.get("qty", 0) or 0)
@@ -263,6 +275,8 @@ def analyze_asset(asset: dict[str, Any]) -> dict[str, Any]:
         "volatility_pct": None,
     }
 
+    news_result = get_news_result(ticker)
+
     pnl_pct = None
     estimated_value_thb = amount_thb
     profit_thb = 0.0
@@ -279,9 +293,18 @@ def analyze_asset(asset: dict[str, Any]) -> dict[str, Any]:
     ai_score = calc_ai_score(pnl_pct, signals)
     ai_commentary = build_ai_commentary(ticker, pnl_pct, signals, ai_score)
 
+    score_v2_data = calc_ai_score_v2(
+        ticker=ticker,
+        name=str(name),
+        pnl_pct=pnl_pct,
+        signals=signals,
+        news_result=news_result,
+    )
+    score_v2_commentary = build_score_v2_commentary(score_v2_data)
+
     return {
         "ticker": ticker,
-        "name": asset.get("name", ticker),
+        "name": name,
         "amount_thb": amount_thb,
         "qty": qty,
         "avg_price": avg_price,
@@ -298,8 +321,17 @@ def analyze_asset(asset: dict[str, Any]) -> dict[str, Any]:
         "sma50": signals.get("sma50"),
         "trend": signals.get("trend"),
         "volatility_pct": signals.get("volatility_pct"),
+        "news_sentiment": news_result.get("sentiment") if news_result else None,
+        "news_score": news_result.get("score") if news_result else None,
+        "news_commentary": news_result.get("commentary") if news_result else None,
+        "news_count": news_result.get("news_count") if news_result else 0,
+        "news_headlines": news_result.get("headlines") if news_result else [],
         "ai_score": ai_score,
         "ai_commentary": ai_commentary,
+        "ai_score_v2": score_v2_data.get("ai_score_v2"),
+        "ai_score_breakdown": score_v2_data.get("ai_score_breakdown"),
+        "ai_confidence": score_v2_data.get("ai_confidence"),
+        "ai_score_v2_commentary": score_v2_commentary,
         "status": status,
         "action": action,
     }
@@ -323,7 +355,7 @@ def summarize_money(portfolio: dict[str, Any] | None = None) -> dict[str, Any]:
     high_risk_count = 0
     for asset in analyzed_assets:
         pnl_pct = asset.get("pnl_pct")
-        ai_score = asset.get("ai_score")
+        ai_score = asset.get("ai_score_v2", asset.get("ai_score"))
         if pnl_pct is not None and pnl_pct <= -10:
             high_risk_count += 1
             risk_notes.append(f"{asset['ticker']} ขาดทุนหนัก {pnl_pct:.2f}%")
@@ -332,7 +364,10 @@ def summarize_money(portfolio: dict[str, Any] | None = None) -> dict[str, Any]:
 
         if ai_score is not None and ai_score < 40:
             high_risk_count += 1
-            risk_notes.append(f"{asset['ticker']} AI Score ต่ำ {ai_score}/100 ควรระวัง")
+            risk_notes.append(f"{asset['ticker']} AI Score 2.0 ต่ำ {ai_score}/100 ควรระวัง")
+
+        if asset.get("news_sentiment") == "BEARISH":
+            risk_notes.append(f"{asset['ticker']} ข่าวล่าสุดเป็นลบ ควรเช็กก่อนตัดสินใจ")
 
     if not risk_notes:
         risk_notes.append("ยังไม่มีสัญญาณเสี่ยงหนักจากรายการที่กรอก")
@@ -376,7 +411,7 @@ def format_money_summary(summary: dict[str, Any]) -> str:
             price_text = "N/A" if asset.get("current_price") is None else f"{asset['current_price']:,.2f}"
             value_text = f"{asset.get('estimated_value_thb', asset['amount_thb']):,.2f} บาท"
             lines.append(
-                f"- {asset['ticker']}: ต้นทุน {asset['amount_thb']:,.2f} บาท | มูลค่า {value_text} | Last {price_text} | P/L {pnl_text} | AI {asset.get('ai_score', 'N/A')}/100 | {asset['action']}"
+                f"- {asset['ticker']}: ต้นทุน {asset['amount_thb']:,.2f} บาท | มูลค่า {value_text} | Last {price_text} | P/L {pnl_text} | AI 2.0 {asset.get('ai_score_v2', 'N/A')}/100 | {asset.get('ai_confidence', 'LOW')} | {asset['action']}"
             )
 
     lines.append("\n⚠️ สิ่งที่ต้องระวัง")
