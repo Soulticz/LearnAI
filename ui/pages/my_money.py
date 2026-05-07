@@ -17,6 +17,7 @@ from money_tracker import ensure_portfolio_file, summarize_money, PORTFOLIO_FILE
 from money_ai import ask_money_ai
 from buy_advisor import build_buy_advice, format_buy_advice
 from decision_tracker import log_ai_decision
+from news_sentiment import analyze_ticker_news
 
 st.set_page_config(page_title="Soul AI Portfolio", page_icon="💰", layout="wide")
 
@@ -123,7 +124,11 @@ st.markdown(
         font-size: 0.86rem;
         font-weight: 700;
         margin-right: 6px;
+        margin-bottom: 6px;
     }
+    .pill-bullish { background: rgba(34, 197, 94, 0.16); border-color: rgba(74, 222, 128, 0.28); color: #bbf7d0; }
+    .pill-bearish { background: rgba(244, 63, 94, 0.16); border-color: rgba(251, 113, 133, 0.28); color: #fecdd3; }
+    .pill-neutral { background: rgba(148, 163, 184, 0.16); border-color: rgba(203, 213, 225, 0.22); color: #e2e8f0; }
     .ai-comment {
         color: #e2e8f0;
         line-height: 1.65;
@@ -132,6 +137,15 @@ st.markdown(
         border-radius: 16px;
         background: rgba(2, 6, 23, 0.32);
         border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+    .news-box {
+        color: #e2e8f0;
+        line-height: 1.65;
+        margin-top: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: rgba(15, 23, 42, 0.42);
+        border: 1px solid rgba(96, 165, 250, 0.14);
     }
     .heatmap-row {
         display: grid;
@@ -177,7 +191,7 @@ st.markdown(
     <div class="hero-card">
         <div class="hero-title">💰 Soul AI Portfolio</div>
         <div class="hero-subtitle">
-            Dashboard สำหรับดูพอร์ตจริง วิเคราะห์ AI Score, RSI, Trend, Volatility และ Investor Memory ในที่เดียว
+            Dashboard สำหรับดูพอร์ตจริง วิเคราะห์ AI Score, RSI, Trend, Volatility, Investor Memory และข่าวล่าสุดในที่เดียว
         </div>
     </div>
     """,
@@ -213,6 +227,11 @@ def reload_data():
     return portfolio, summary
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def get_cached_news_sentiment(ticker: str):
+    return analyze_ticker_news(ticker, limit=5)
+
+
 def ai_color(score: int) -> str:
     if score >= 75:
         return "🟢"
@@ -221,6 +240,22 @@ def ai_color(score: int) -> str:
     if score >= 40:
         return "🟡"
     return "🔴"
+
+
+def sentiment_emoji(sentiment: str) -> str:
+    if sentiment == "BULLISH":
+        return "🟢"
+    if sentiment == "BEARISH":
+        return "🔴"
+    return "⚪"
+
+
+def sentiment_pill_class(sentiment: str) -> str:
+    if sentiment == "BULLISH":
+        return "pill pill-bullish"
+    if sentiment == "BEARISH":
+        return "pill pill-bearish"
+    return "pill pill-neutral"
 
 
 def fmt_money(value: float) -> str:
@@ -508,6 +543,13 @@ if assets:
         estimated_value = asset.get("estimated_value_thb", 0)
         profit_thb = float(asset.get("profit_thb", 0) or 0)
 
+        news_result = get_cached_news_sentiment(ticker)
+        news_sentiment = news_result.get("sentiment", "NEUTRAL")
+        news_score = news_result.get("score", 0)
+        news_commentary = news_result.get("commentary", "")
+        news_count = news_result.get("news_count", 0)
+        headlines = news_result.get("headlines", [])
+
         pnl_text = fmt_pct(pnl_pct)
         current_text = "N/A" if current_price is None else f"{current_price:,.2f}"
         profit_class = "metric-delta-positive" if profit_thb >= 0 else "metric-delta-negative"
@@ -523,6 +565,7 @@ if assets:
                             <span class="pill">AI {ai_score}/100</span>
                             <span class="pill">Trend: {trend}</span>
                             <span class="pill">P/L {pnl_text}</span>
+                            <span class="{sentiment_pill_class(news_sentiment)}">{sentiment_emoji(news_sentiment)} News {news_sentiment} ({news_score:+})</span>
                         </div>
                     </div>
                     <div style="text-align:right; min-width:190px;">
@@ -532,6 +575,7 @@ if assets:
                     </div>
                 </div>
                 <div class="ai-comment">💡 {commentary}</div>
+                <div class="news-box">📰 {news_commentary}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -554,6 +598,13 @@ if assets:
                 st.write(f"🤖 Status: {asset.get('status')} ")
                 st.write(f"🎯 Action: {asset.get('action')} ")
                 st.write(f"💵 มูลค่าปัจจุบัน: {float(estimated_value or 0):,.2f} บาท")
+
+            st.markdown("#### 📰 Headlines ล่าสุด")
+            if news_count > 0 and headlines:
+                for headline in headlines[:5]:
+                    st.write(f"- {headline}")
+            else:
+                st.caption("ยังไม่มีข่าวจาก yfinance สำหรับ ticker นี้")
 else:
     st.info("ยังไม่ได้กรอกหุ้น/ทอง")
 
