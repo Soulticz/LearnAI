@@ -1,8 +1,44 @@
 from typing import Any
 
+import yfinance as yf
+
 from money_tracker import ensure_portfolio_file, summarize_money
 
 GOLD_TICKERS = {"GC=F", "GLD", "IAU", "XAUUSD=X", "YLG-GOLD", "GOLD"}
+
+
+def get_live_gold_price(ticker: str = "GC=F") -> dict[str, Any]:
+    """ดึงราคาทองล่าสุดแบบใกล้ realtime จาก yfinance
+
+    หมายเหตุ: yfinance ไม่ใช่ realtime tick-by-tick แบบ broker API
+    แต่เหมาะกับ dashboard ส่วนตัวและ paper tracking
+    """
+    try:
+        df = yf.download(ticker, period="2d", interval="1m", progress=False)
+        if df.empty:
+            return {"ticker": ticker, "price": None, "change_pct": None, "source": "yfinance", "error": "empty data"}
+
+        if hasattr(df.columns, "nlevels") and df.columns.nlevels > 1:
+            df.columns = df.columns.get_level_values(0)
+        df.columns = df.columns.str.lower()
+
+        close = df["close"].dropna()
+        if len(close) < 2:
+            return {"ticker": ticker, "price": None, "change_pct": None, "source": "yfinance", "error": "not enough data"}
+
+        latest = float(close.iloc[-1])
+        previous = float(close.iloc[-2])
+        change_pct = ((latest / previous) - 1) * 100 if previous else 0
+
+        return {
+            "ticker": ticker,
+            "price": latest,
+            "change_pct": change_pct,
+            "source": "yfinance",
+            "error": None,
+        }
+    except Exception as e:
+        return {"ticker": ticker, "price": None, "change_pct": None, "source": "yfinance", "error": str(e)}
 
 
 def is_gold_asset(asset: dict[str, Any]) -> bool:
@@ -39,6 +75,8 @@ def summarize_gold_portfolio(summary: dict[str, Any] | None = None) -> dict[str,
     total = float(summary.get("total_thb", 0) or 0)
     gold_weight_pct = (gold_value / total * 100) if total > 0 else 0
 
+    live_gold = get_live_gold_price("GC=F")
+
     risk_notes = []
     if gold_weight_pct >= 40:
         risk_notes.append("ทองมีสัดส่วนสูงมากในพอร์ต ระวังกระจุกตัวเกินไป")
@@ -49,6 +87,13 @@ def summarize_gold_portfolio(summary: dict[str, Any] | None = None) -> dict[str,
         risk_notes.append("ทองกำไรแรง ควรวางแผนล็อกกำไรบางส่วน")
     elif gold_profit_pct <= -10:
         risk_notes.append("ทองติดลบหนัก อย่าเติมเงินแก้มือทันที")
+
+    live_change = live_gold.get("change_pct")
+    if live_change is not None:
+        if live_change >= 0.5:
+            risk_notes.append(f"ราคาทองล่าสุดขยับขึ้นเร็ว {live_change:+.2f}% ระวังไล่ราคา")
+        elif live_change <= -0.5:
+            risk_notes.append(f"ราคาทองล่าสุดอ่อนตัว {live_change:+.2f}% รอดูจังหวะก่อนเพิ่ม")
 
     if not risk_notes:
         risk_notes.append("พอร์ตทองยังไม่มีสัญญาณเสี่ยงเด่น")
@@ -62,6 +107,7 @@ def summarize_gold_portfolio(summary: dict[str, Any] | None = None) -> dict[str,
         "gold_profit_thb": gold_profit,
         "gold_profit_pct": gold_profit_pct,
         "gold_weight_pct": gold_weight_pct,
+        "live_gold": live_gold,
         "risk_notes": risk_notes,
     }
 
