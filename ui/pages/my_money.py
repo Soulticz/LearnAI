@@ -46,11 +46,22 @@ c3.metric("Asset Value", f"{summary.get('asset_market_total_thb', 0):,.2f} THB")
 c4.metric("P/L", f"{summary.get('asset_profit_thb', 0):+,.2f} THB", f"{summary.get('asset_profit_pct', 0):+.2f}%")
 
 st.subheader("Gold Portfolio")
-g1, g2, g3, g4 = st.columns(4)
+live_gold = gold_summary.get("live_gold", {})
+
+g1, g2, g3, g4, g5 = st.columns(5)
 g1.metric("Gold items", gold_summary.get("gold_count", 0))
 g2.metric("Gold value", f"{gold_summary.get('gold_value_thb', 0):,.2f} THB")
 g3.metric("Gold P/L", f"{gold_summary.get('gold_profit_thb', 0):+,.2f} THB", f"{gold_summary.get('gold_profit_pct', 0):+.2f}%")
 g4.metric("Gold weight", f"{gold_summary.get('gold_weight_pct', 0):.2f}%")
+
+if live_gold.get("price") is not None:
+    g5.metric(
+        "Realtime Gold",
+        f"${live_gold.get('price', 0):,.2f}",
+        f"{live_gold.get('change_pct', 0):+.2f}%"
+    )
+else:
+    g5.metric("Realtime Gold", "N/A")
 
 for note in gold_summary.get("risk_notes", []):
     st.warning(note)
